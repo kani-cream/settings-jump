@@ -1,0 +1,31 @@
+<idea-plugin>
+    <id>com.github.kanicream.settingsjump.poc</id>
+    <name>Settings Jump PoC</name>
+    <vendor>kani-cream</vendor>
+    <description><![CDATA[
+        Phase 0 technical validation for Settings Jump.
+        Measures Configurable EP metadata (Gate 1/2) and validates
+        preflight + public-API navigation (Gate 3). Never distributed.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Settings Jump PoC" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <group id="SettingsJumpPoc.Group" text="Settings Jump PoC" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="SettingsJumpPoc.DumpReport"
+                    class="com.github.kanicream.settingsjump.poc.actions.DumpSettingsIndexReportAction"
+                    text="PoC: Dump Settings Index Report (Gate 1/2)"/>
+            <action id="SettingsJumpPoc.OpenById"
+                    class="com.github.kanicream.settingsjump.poc.actions.OpenSettingsByIdAction"
+                    text="PoC: Open Settings by ID (Gate 3)"/>
+            <action id="SettingsJumpPoc.OpenMissing"
+                    class="com.github.kanicream.settingsjump.poc.actions.OpenMissingSettingsAction"
+                    text="PoC: Open Missing Settings (Gate 3 Fail Closed)"/>
+        </group>
+    </actions>
+</idea-plugin>
