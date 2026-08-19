@@ -1,0 +1,56 @@
+<idea-plugin>
+    <id>com.github.kanicream.settingsjump</id>
+    <name>Settings Jump</name>
+    <vendor>kani-cream</vendor>
+    <description><![CDATA[
+        Fast navigation to JetBrains IDE settings pages.
+        <ul>
+            <li>Search settings pages by name and hierarchy, open them directly.</li>
+            <li>Mark favorites; they appear first when the popup opens.</li>
+            <li>Assign favorites to ten fixed shortcut slots and open a page with one keystroke
+                (bind keys in Settings &gt; Keymap &gt; Settings Jump).</li>
+            <li>Recently opened pages are one keystroke away.</li>
+        </ul>
+        Settings Jump never changes setting values — it only takes you there.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Settings Jump" displayType="BALLOON"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="com.github.kanicream.settingsjump.index.IndexInvalidator"
+                  topic="com.intellij.ide.plugins.DynamicPluginListener"/>
+    </applicationListeners>
+
+    <actions>
+        <action id="SettingsJump.Open"
+                class="com.github.kanicream.settingsjump.actions.OpenSettingsJumpAction"
+                text="Open Settings Jump"
+                description="Search settings pages and jump to them">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="SettingsJump.Slot1" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 1" description="Open the settings page assigned to slot 1"/>
+        <action id="SettingsJump.Slot2" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 2" description="Open the settings page assigned to slot 2"/>
+        <action id="SettingsJump.Slot3" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 3" description="Open the settings page assigned to slot 3"/>
+        <action id="SettingsJump.Slot4" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 4" description="Open the settings page assigned to slot 4"/>
+        <action id="SettingsJump.Slot5" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 5" description="Open the settings page assigned to slot 5"/>
+        <action id="SettingsJump.Slot6" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 6" description="Open the settings page assigned to slot 6"/>
+        <action id="SettingsJump.Slot7" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 7" description="Open the settings page assigned to slot 7"/>
+        <action id="SettingsJump.Slot8" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 8" description="Open the settings page assigned to slot 8"/>
+        <action id="SettingsJump.Slot9" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 9" description="Open the settings page assigned to slot 9"/>
+        <action id="SettingsJump.Slot10" class="com.github.kanicream.settingsjump.actions.ShortcutSlotAction"
+                text="Settings Jump: Shortcut 10" description="Open the settings page assigned to slot 10"/>
+    </actions>
+</idea-plugin>
