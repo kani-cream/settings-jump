@@ -85,5 +85,6 @@ Gate 2 full-IDE measurement should confirm before revisiting design 8.2.
 3. ~~Decide the design refinement raised by Finding B (childrenEPName enumeration)~~
    — RESOLVED: design.md v0.8 supports childrenEPName; the production index and
    navigation traverse referenced EPs (Code Completion is searchable and openable).
-4. Finding A (parents of dynamic children, e.g. Code Style / Colors & Fonts) is
-   still excluded per design — revisit if users miss those pages.
+4. ~~Finding A (parents of dynamic children)~~ — RESOLVED: design.md v0.9 indexes
+   dynamic parent pages themselves (Code Style, Colors & Fonts, VCS Mappings, ...);
+   runtime-generated children stay unenumerated.
