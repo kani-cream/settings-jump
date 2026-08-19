@@ -20,9 +20,11 @@ internal data class RawPage(
 /**
  * Reads Configurable EP declarations using metadata only — never instantiates a
  * Configurable or a provider (design.md 9.1). Pages that fail the Eligible
- * conditions (design.md section 4) are skipped: no stable id, no resolvable
- * display name, or dynamic=true. Children supplied via nested <configurable>
- * and via childrenEPName-referenced EPs are both included (design.md 8.2).
+ * conditions (design.md section 4) are skipped: no stable id or no resolvable
+ * display name. Children supplied via nested <configurable> and via
+ * childrenEPName-referenced EPs are both included; dynamic=true pages are
+ * indexed themselves, but their runtime-generated children are not enumerated
+ * (design.md 8.2, Phase 0 Findings A/B).
  */
 internal object ConfigurableMetadataReader {
 
@@ -34,7 +36,6 @@ internal object ConfigurableMetadataReader {
         parentId: String? = null,
         visitedChildEps: MutableSet<String> = mutableSetOf(),
     ): List<RawPage> {
-        if (ep.dynamic) return emptyList()
         val id = ep.id?.takeIf { it.isNotBlank() } ?: return emptyList()
         val displayName = resolveDisplayName(ep) ?: return emptyList()
         val page = RawPage(

@@ -51,6 +51,19 @@ class IndexAndNavigationIntegrationTest : BasePlatformTestCase() {
         assertNotNull(ConfigurableEpTraversal.findById(project, "editor.preferences.completion"))
     }
 
+    fun testDynamicParentPagesAreIndexed() {
+        // dynamic=true means runtime-generated CHILDREN; the parent page itself is a
+        // static declaration and must be searchable (design.md 8.2, Phase 0 Finding A).
+        val pages = SettingsPageIndexFacade.pagesForContext(project)
+        val codeStyle = pages.firstOrNull { it.id == "preferences.sourceCode" }
+        assertNotNull("Code Style must be indexed", codeStyle)
+        assertEquals(SettingsScope.PROJECT, codeStyle!!.scope)
+        assertNotNull(
+            "Colors & Fonts must be indexed",
+            pages.firstOrNull { it.id == "reference.settingsdialog.IDE.editor.colors" },
+        )
+    }
+
     fun testInvalidateRebuildsIndex() {
         val app = AppSettingsPageIndex.getInstance()
         val before = app.pages()

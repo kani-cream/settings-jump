@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.8
+- Version: 0.9
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -17,6 +17,7 @@
 | 0.6 | リリース計画を Phase 0(Technical Validation・version なし)→ v0.5(Public Preview・全機能)→ v1.0(Stable・安定化のみ)の3段階に簡素化。中間バージョン(v0.1〜v0.4、v0.9)を廃止し、進行管理はコミット・Issue 単位とする |
 | 0.7 | 将来候補にマウス向けエントリポイント(ツールバー / ステータスバーのアイコンから Search Popup を開く。Shortcut Slot と併用)を追加。Tool Window 不採用の判断は維持 |
 | 0.8 | Phase 0 Finding B を受け、`childrenEPName` を v1.0 対応に変更(参照先 EP を公開 ExtensionPointName でメタデータのみ列挙、各エントリを通常の Eligible 条件で判定、宣言ページ自体も Eligible、列挙不能は fail soft)。Code Completion 等の Editor 配下ページが検索対象になる |
+| 0.9 | Phase 0 Finding A を受け、`dynamic=true` の親ページ自体を Eligible に変更(静的 XML 宣言で安定 ID・表示メタデータを持つため)。Code Style / Colors & Fonts / Version Control Mappings 等が検索対象になる。実行時生成の子ページは引き続き列挙しない |
 
 ---
 
@@ -423,10 +424,11 @@ childrenEPName(別 EP を子として参照する正式な属性)
   各エントリを通常の Eligible 条件で個別判定する
 
 dynamic=true
-→ Non-eligible
+→ ページ自体は Eligible 候補(他の Eligible 条件を満たす場合)
+→ 実行時生成される子ページは列挙しない
 
 runtime Composite child(Configurable.Composite#getConfigurables())
-→ Non-eligible
+→ Non-eligible(列挙には Configurable のインスタンス化が必要なため)
 ```
 
 `childrenEPName` の扱い(Phase 0 Finding B により決定):
@@ -436,6 +438,13 @@ runtime Composite child(Configurable.Composite#getConfigurables())
 - **宣言ページ自体**も、他の Eligible 条件を満たせば Eligible とする(childrenEPName の宣言はページ自体を Non-eligible にしない)
 - 参照先 EP が列挙できない場合(未登録、project-area 等)は **fail soft**(子なしとして扱い、エラーにしない)
 - 再帰参照は visited 管理で打ち切る
+
+`dynamic=true` の扱い(Phase 0 Finding A により決定):
+
+- `dynamic` が意味するのは「**子ページ**が実行時に `Composite#getConfigurables()` で生成される」ことであり、**親ページ自体は静的 XML 宣言**で安定 ID と表示メタデータを持つ(Phase 0 実測: Code Style / Colors & Fonts / Version Control Mappings 等の日常ページが該当)
+- したがって親ページ自体は通常の Eligible 条件で判定して index に載せ、検索・Favorite・Slot の対象とする
+- 実行時生成の子ページ(例: Code Style 配下の言語別ページ)は列挙しない。対応にはインスタンス化が必要になり 9.1節の原則に反するため、将来も 26節の判断に委ねる
+- ユーザーへの帰結: 「Code Style」は検索で開けるが、「Kotlin の Code Style」へは Code Style を開いてからツリーで辿る
 
 例:
 
@@ -1303,7 +1312,8 @@ Keyboard-first 原則(7.4節)は維持したまま、キー割り当てを覚え
 | 親子解決 | explicit parentId → nested EP → top-level group |
 | Nested static Configurable | Eligible 対象(Dynamic とは区別) |
 | childrenEPName | 対応(参照先 EP をメタデータのみで列挙。fail soft。Phase 0 Finding B) |
-| Dynamic Settings | v1.0 対象外。カバレッジは Gate 2 で実測 |
+| dynamic=true の親ページ | Eligible(Phase 0 Finding A)。実行時生成の子は列挙しない |
+| Dynamic Settings(runtime child) | v1.0 対象外。カバレッジは Gate 2 で実測 |
 | Navigation 実行 | preflight(availability 評価は Open 時のみ)+ try-catch 境界で fail closed |
 | 英語検索の保証 | ID / plugin ID / alias 由来 token に限定 |
 | Gate 測定 | Starter+Driver で reference set 取得(Internal API 禁止は配布 runtime code のみ) |
