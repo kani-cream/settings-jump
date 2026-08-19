@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.4
+- Version: 0.5
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -13,6 +13,7 @@
 | 0.2 | 設計レビューを反映。Eligible Settings Page 境界を定義し、PoC Gate を定量的 GO/NO-GO 判定へ強化。Stable ID / 表示名取得 / 階層構築 / ナビゲーション経路の前提を現行 SDK と照合して修正。対象環境・ビルド基盤・スレッディング・永続化スキーマ・テスト実行形態を確定。リリース計画を再構成 |
 | 0.3 | 第2回レビューを反映。Eligible(識別の安定性)と Available(現在の context での存在)を分離し `ConfigurableProvider` による contextual availability に対応。Index を Application / Project の二層に分離。Gate 1/2 の reference 測定方法を明記(Internal API 禁止は配布 runtime code への制約と明確化)。日本語 UI での英語検索の保証範囲を限定。Nested static Configurable の親子解決を明記 |
 | 0.4 | 第3回レビューを反映。Navigation を preflight + navigation の二段構成にし、`ShowSettingsUtil` の predicate 不一致例外を IDE へ漏らさない fail closed 境界を明記。二層 index の役割を「scope と lifecycle の分離」に修正(availability は Navigation 時のみ評価)。`childrenEPName` を v1.0 Non-eligible と定義。節参照の修正、v0.5 / v1.0 のリリース名称変更 |
+| 0.5 | Platform ソース照合による精密化。SDK 上 `id` / display metadata は推奨であり必須ではないと訂正(Eligible 条件は Platform 要件より意図的に厳しいと明記)。bundle 省略時は plugin descriptor default bundle で key を解決できるため Eligible 判定に含める。`nonDefaultProject` により EP 直接宣言でも context 依存になり得るため CONTEXTUAL の定義を拡張し、preflight は AvailabilityKind に関係なく全ページで実施(AvailabilityKind は UI hint)。preflight に `ep.isAvailable()` を追加。例外方針を明確化(Platform cancellation は再送出) |
 
 ---
 
@@ -138,7 +139,8 @@ Eligible Settings Page
 
 1. applicationConfigurable / projectConfigurable EP 由来である
 2. stable ID が取得可能である
-3. displayName または localization key(key + bundle)が
+3. displayName、または localization key と解決可能な Resource Bundle
+   (explicit bundle / plugin descriptor default bundle のいずれか)が
    EP メタデータから取得可能である
 4. scope(APPLICATION / PROJECT)が判定可能である
 5. parent chain が公開メタデータから解決可能である
@@ -147,16 +149,24 @@ Eligible Settings Page
 
 ### 4.1 SDK 上の前提と現実
 
-現行の JetBrains SDK ドキュメントでは、`applicationConfigurable` / `projectConfigurable` の `id`、`displayName`(または `key` + `bundle`)、`parentId` は必須として案内されており、メタデータを plugin descriptor に置くことで Configurable クラスをロードせずに Settings ツリーを構築できることが推奨設計とされている。
+現行 SDK では `applicationConfigurable` / `projectConfigurable` の `id` および display metadata(`displayName` または `key`)の宣言が**推奨されているが、必須ではない**(`ConfigurableEP` 上、`id` / `displayName` / `parentId` に `@RequiredElement` は付いていない。`parentId` は完全に optional であり、親子関係は nested `<configurable>` や `groupId` でも表現できる)。
 
-一方、Platform 実装は歴史的経緯からより寛容であり、EP に ID がない場合のフォールバック(`SearchableConfigurable#getId()` → `providerClass` / `instanceClass` 等)が存在する。また素の `Configurable` インターフェース自体には ID の契約がない(`SearchableConfigurable` が `ConfigurableWithId` を継承する構造)。
+また Platform 実装は歴史的経緯から寛容であり、EP に ID がない場合のフォールバック(`SearchableConfigurable#getId()` → `providerClass` / `instanceClass` 等)が存在する。素の `Configurable` インターフェース自体には ID の契約がない(`SearchableConfigurable` が `ConfigurableWithId` を継承する構造)。
 
 したがって:
 
-- **現行 SDK に準拠した正しいプラグインのページは Eligible 条件を満たす**
-- **レガシー・非準拠のページは満たさないことがある**
+- **SDK 準拠の正常なページであっても、Settings Jump の Eligible 条件を満たさない場合がある**
+- **Settings Jump の Eligible 条件は、IntelliJ Platform 自体の Configurable 要件より意図的に厳しい**
 
-Settings Jump は後者を救済しない。
+```text
+IntelliJ として有効
+      ≠
+Settings Jump で永続化可能
+```
+
+この差は設計思想(3.3 fail closed)と整合しており、埋めようとしない。
+
+なお displayName の解決について、`bundle` 属性が省略されている場合でも Platform は plugin descriptor の default Resource Bundle(`getResourceBundleBaseName()`)から `key` を解決する。この公開された bundle 解決規則で localized display name を取得できるページは Eligible とし、不必要に Non-eligible 判定しない。
 
 ### 4.2 Non-eligible ページの扱い
 
@@ -197,12 +207,16 @@ Project B → canCreateConfigurable() = false
 
 となり得る。これは設計の矛盾ではなく、「ページの identity は安定しているが、そのページが今存在するかは Project context に依存し得る」という性質として扱う。
 
+なお context 依存は Provider に限らない。EP 直接宣言でも `nonDefaultProject` 属性により default project では利用不可になり得る(`ConfigurableEP.isAvailable()`)。
+
 ```kotlin
 enum class AvailabilityKind {
-    STATIC,      // EP 直接宣言。context 非依存
-    CONTEXTUAL   // ConfigurableProvider 由来。context により存在しないことがある
+    STATIC,      // metadata 上、特別な context 依存が確認できない
+    CONTEXTUAL   // providerClass != null または nonDefaultProject == true
 }
 ```
+
+`AvailabilityKind` は **UI に「このページは context 依存かもしれない」と表示するための hint に留める**。実際の availability 判定は AvailabilityKind に関係なく、Navigation 時の preflight(10.2節)で全ページに対して行う。
 
 挙動:
 
@@ -366,7 +380,7 @@ enum class SettingsScope {
 
 `UNKNOWN` scope は設けない。scope を判定できないページは Eligible でないため、モデルに現れない(fail closed)。
 
-`availability` は EP 宣言形態から判定する(provider 属性由来なら CONTEXTUAL、instance/class 直接宣言なら STATIC)。
+`availability` は EP 宣言メタデータから判定する(`providerClass != null` または `nonDefaultProject == true` なら CONTEXTUAL、それ以外は STATIC)。これは UI hint であり、実際の availability 判定は preflight(10.2節)が担う(4.3節)。
 
 ### 8.1 Stable key
 
@@ -544,14 +558,19 @@ public predicate 経路は「保存 ID を渡して O(1) で開く」API では�
 
 そこで Navigation は **preflight + navigation** の二段構成とする。
 
+preflight は **AvailabilityKind に関係なく全ページで実施する**(AvailabilityKind は UI hint に過ぎない。4.3節)。
+
 ```text
 Shortcut / Favorite 実行
         ↓
 対象 EP が現在の context に存在するか確認
         ↓
-CONTEXTUAL(4.3節)なら availability を確認
-  (public な ConfigurableEP.canCreateConfigurable() を評価。
-   provider の場合は内部で provider.canCreateConfigurable() が評価される)
+ep.isAvailable()
+  (nonDefaultProject 等の metadata 由来の可用性)
+        ↓
+ep.canCreateConfigurable()
+  (public API。provider の場合は内部で
+   provider.canCreateConfigurable() が評価される)
         ↓
 Unavailable
 → ShowSettingsUtil を呼ばない
@@ -565,6 +584,7 @@ Available
 
 - **index 構築時には Provider を生成しない方針(9.1節)を維持する**。availability 評価はユーザーが実際に Open した瞬間のみ行う
 - preflight 通過後も plugin unload 等との race は残り得るため、`ShowSettingsUtil` 呼び出し境界を try-catch で保護し、**解決不能でも IDE へ例外を漏らさない**。失敗時は軽量通知に落とす
+- ただし無差別な `catch (Throwable)` / `runCatching` にはしない。**Navigation 失敗として想定される例外のみを UI failure へ変換し、`ProcessCanceledException` / `CancellationException` 等の Platform cancellation は握り潰さず再送出する**
 
 ### 10.3 Project scope の解決
 
@@ -1268,7 +1288,9 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 | Settings identity | stable Configurable ID のみ。合成キーは作らない |
 | ID なしページ | v1.0 対象外(fail closed) |
 | 表示名取得 | EP メタデータのみ。インスタンス化して取得しない |
-| Eligible / Available | 分離。CONTEXTUAL(Provider 由来)も Favorite 可、開けない時は fail closed |
+| Eligible 条件の位置づけ | Platform 自体の Configurable 要件より意図的に厳しい |
+| Eligible / Available | 分離。CONTEXTUAL(provider または nonDefaultProject)も Favorite 可、開けない時は fail closed |
+| AvailabilityKind | UI hint のみ。実判定は preflight が全ページに対して実施 |
 | Index 構造 | Application / Project の二層。`forContext(project)` で統合 |
 | 階層 | Navigation Path(公開メタデータ由来)。UI ツリーの完全再現は保証しない |
 | 親子解決 | explicit parentId → nested EP → top-level group |
