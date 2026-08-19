@@ -1,0 +1,942 @@
+# Settings Jump 設計書
+
+- Status: Draft
+- Version: 0.1
+- Repository: `kani-cream/settings-jump`
+- Product name: **Settings Jump**
+
+## 1. 概要
+
+Settings Jump は、JetBrains IDE の階層化された Settings / Preferences へ高速にアクセスするための IntelliJ Platform プラグインである。
+
+JetBrains IDE の Settings は機能が豊富である一方、目的の設定ページが深い階層に存在することが多い。ユーザーは設定値そのものを変更したいのではなく、まず「どこにあるか」を探し、階層を辿る必要がある。
+
+Settings Jump はこの探索コストを削減し、以下の操作を提供する。
+
+1. Settings ページを名前・階層から検索する
+2. 検索結果から目的の Settings ページを直接開く
+3. よく使う Settings ページを Favorite として登録する
+4. Favorite に固定ショートカットスロットを割り当て、1操作で開く
+5. 最近開いた Settings ページへ再アクセスする
+
+本プラグインは **Settings の値を変更しない**。
+
+設定値の表示、編集、検証、Apply / Reset、永続化、再起動要否などの責務は JetBrains IDE または各プラグイン自身の Settings UI に残す。
+
+---
+
+## 2. 解決したい問題
+
+### 2.1 現状の問題
+
+JetBrains IDE では Settings が多段階に階層化されている。
+
+例:
+
+```text
+Settings
+└── Build, Execution, Deployment
+    └── Build Tools
+        └── Gradle
+```
+
+```text
+Settings
+└── Editor
+    └── General
+        └── Code Completion
+```
+
+ユーザーが目的のページ名を覚えていても、毎回親カテゴリから辿る必要がある。
+
+また、設定場所を完全には覚えていない場合、以下のコストが発生する。
+
+- Settings を開く
+- 左ペインを探す
+- 親カテゴリを展開する
+- 子カテゴリを探す
+- 別カテゴリだった場合は戻る
+- 目的のページに到達する
+
+### 2.2 Settings Jump が提供する解決策
+
+```text
+Open Settings Jump
+        ↓
+"gradle" と入力
+        ↓
+Build, Execution, Deployment > Build Tools > Gradle
+        ↓
+Enter
+        ↓
+Gradle Settings が選択された状態で Settings を開く
+```
+
+Settings Jump の責務は **目的地の特定とナビゲーション** までとする。
+
+---
+
+## 3. プロダクト原則
+
+### 3.1 Navigation, not Configuration
+
+Settings Jump は Settings の値を変更しない。
+
+以下は行わない。
+
+- Checkbox の ON / OFF
+- ComboBox の選択変更
+- TextField の書き換え
+- Registry 値の変更
+- 他プラグイン設定値の変更
+- Apply / Reset の代行
+- Settings UI の Swing component を探索して疑似操作する処理
+
+### 3.2 公開 API を優先する
+
+IntelliJ Platform の公開 API を使用する。
+
+`@ApiStatus.Internal`、非推奨 API、UI 実装詳細への依存は原則禁止する。
+
+内部 API がなければ実装できない機能は、実装範囲から除外するか、別途設計判断を行う。
+
+### 3.3 Fail safely
+
+IDE バージョン変更、プラグインの追加・削除などにより保存済み Settings ページが存在しなくなった場合でも、IDE の動作を妨げてはならない。
+
+ページが見つからない場合は Favorite / Recent を壊さず、利用不可として扱う。
+
+### 3.4 IDE の Settings を唯一の編集 UI とする
+
+Settings Jump 側に設定項目のコピー UI を作らない。
+
+設定変更に関するテスト責務を Settings Jump が引き受けないことを、設計上の重要な境界とする。
+
+---
+
+## 4. スコープ
+
+### 4.1 v1.0 に含める
+
+- Settings ページの検出
+- Settings ページの階層情報構築
+- Settings ページ検索
+- 目的ページを選択した状態で Settings を開く
+- Favorite 登録 / 解除
+- Recent Settings
+- 固定 Shortcut Slot
+- Project Settings / Application Settings の適切な扱い
+- 利用不可になった Settings ページの安全な処理
+- JetBrains 標準 Settings の主要ページに対する互換性確認
+- 通常の `applicationConfigurable` / `projectConfigurable` を使用するサードパーティープラグインの基本対応
+
+### 4.2 v1.0 に含めない
+
+- Settings 値の直接変更
+- Boolean Toggle
+- Settings Profile
+- 設定値の Import / Export
+- Settings 値の同期
+- Settings UI 内の任意 component への強制フォーカス
+- Swing component tree の解析
+- Reflection による設定値変更
+- Internal API に依存した全文 Settings 検索
+- AI 機能
+
+---
+
+## 5. 想定ユーザーフロー
+
+### 5.1 検索して開く
+
+1. ユーザーが `Open Settings Jump` Action を実行する
+2. Popup が表示される
+3. 検索欄へ `gradle` と入力する
+4. 一致する Settings ページが一覧表示される
+5. `Build, Execution, Deployment > Build Tools > Gradle` を選択する
+6. Enter を押す
+7. Gradle ページが選択された Settings ダイアログを開く
+
+### 5.2 Favorite から開く
+
+1. Settings Jump を開く
+2. Settings ページを Favorite に登録する
+3. 次回以降は検索せず Favorite から選択する
+
+### 5.3 Shortcut Slot から開く
+
+1. Favorite を `Shortcut Slot 1` に割り当てる
+2. JetBrains の Keymap で `Settings Jump: Shortcut 1` にキーを割り当てる
+3. キー入力だけで対象 Settings ページを開く
+
+### 5.4 Recent から開く
+
+1. Settings Jump 経由でページを開く
+2. 開いたページを Recent に追加する
+3. 次回 Settings Jump 起動時に Recent から再度開ける
+
+---
+
+## 6. UI / UX
+
+### 6.1 メイン UI
+
+Tool Window は使用せず、基本 UI は軽量な Search Popup とする。
+
+```text
+┌──────────────────────────────────────────────┐
+│ Settings Jump                               │
+│ > gradle                                    │
+├──────────────────────────────────────────────┤
+│ ★ Build Tools > Gradle                      │
+│   Build, Execution, Deployment > ...        │
+│                                              │
+│   Gradle JVM                                │
+│   Build, Execution, Deployment > ...        │
+└──────────────────────────────────────────────┘
+```
+
+### 6.2 空検索時
+
+検索文字列が空の場合は以下の順で表示する。
+
+```text
+Favorites
+Recent
+All Settings
+```
+
+All Settings は必要に応じて折りたたみ、Favorite / Recent を優先する。
+
+### 6.3 検索結果表示
+
+各結果は最低限以下を表示する。
+
+- Display Name
+- Settings hierarchy path
+- Favorite 状態
+- Application / Project scope を区別する必要がある場合は scope
+
+例:
+
+```text
+Code Completion
+Editor > General > Code Completion
+```
+
+同名 Settings が存在しても path で判別できるようにする。
+
+### 6.4 Keyboard-first
+
+主要操作はキーボードだけで完結できること。
+
+- Popup を開く
+- 検索
+- 上下移動
+- Enter で開く
+- Favorite 登録 / 解除
+
+マウス操作は補助とする。
+
+---
+
+## 7. Settings ページモデル
+
+内部表現は Settings の値を保持せず、ナビゲーションに必要なメタデータのみ保持する。
+
+```kotlin
+data class SettingsPage(
+    val id: String,
+    val displayName: String,
+    val parentId: String?,
+    val path: List<String>,
+    val scope: SettingsScope,
+    val sourcePluginId: String?
+)
+
+enum class SettingsScope {
+    APPLICATION,
+    PROJECT,
+    UNKNOWN
+}
+```
+
+### 7.1 Stable key
+
+永続化には displayName を主キーとして使用しない。
+
+原則として `Configurable` / Extension Point が提供する一意 ID を stable key とする。
+
+```text
+settingsPageId = configurable.id
+```
+
+理由:
+
+- UI 表示名は変更される可能性がある
+- Localization により表示名が変化する
+- 同名ページが存在し得る
+
+### 7.2 Path
+
+`parentId` と group 情報から表示用 path を構築する。
+
+例:
+
+```text
+Build, Execution, Deployment > Build Tools > Gradle
+```
+
+path は検索補助・表示用であり、永続化上の identity には使用しない。
+
+---
+
+## 8. Settings 検出
+
+### 8.1 基本方針
+
+JetBrains IDE の Settings は `Configurable` 系の仕組みによって構成されている。
+
+Settings Jump は Settings を変更するのではなく、Configurable のメタデータを利用してナビゲーション用 index を構築する。
+
+主に以下の情報を使用する。
+
+- Configurable ID
+- Display Name
+- Parent ID
+- Group ID
+- Application / Project scope
+- Source plugin
+
+### 8.2 Dynamic Settings
+
+一部の Settings は動的に子 Configurable を生成する可能性がある。
+
+例:
+
+```text
+dynamic = true
+Configurable.Composite#getConfigurables()
+```
+
+そのため、「静的 Extension Point 情報だけで IDE に表示される全 Settings ページを完全に列挙できる」とは仮定しない。
+
+Dynamic Settings のカバー率は PoC Gate で検証する。
+
+### 8.3 Third-party plugin
+
+サードパーティープラグインが通常の IntelliJ Platform Settings Extension Point を使用している場合は検索対象に含めることを目標とする。
+
+ただし以下は保証対象外とする。
+
+- 独自 Dialog のみを使用するプラグイン
+- Internal API に依存する Settings
+- Runtime に特殊な方法で生成される UI
+- 標準 Configurable tree へ登録されない設定画面
+
+---
+
+## 9. Settings を開く処理
+
+Settings ページへのナビゲーションは `ShowSettingsUtil` を中心に実装する。
+
+概念例:
+
+```kotlin
+ShowSettingsUtil.getInstance().showSettingsDialog(
+    project,
+    predicate,
+    null
+)
+```
+
+または利用可能な公開 overload を使用して対象 Configurable を指定する。
+
+### 9.1 禁止事項
+
+以下の手法は禁止する。
+
+- Settings dialog の component tree を直接操作する
+- Settings の左 Tree を文字列一致でクリックする
+- UI 座標や component hierarchy に依存する
+- `ShowSettingsUtilImpl` など implementation class へ直接依存する
+
+---
+
+## 10. Search
+
+### 10.1 Search target
+
+検索対象:
+
+- displayName
+- hierarchy path
+- group name
+
+例:
+
+```text
+Query: gradle
+
+Build Tools > Gradle
+```
+
+```text
+Query: editor completion
+
+Editor > General > Code Completion
+```
+
+### 10.2 Search normalization
+
+最低限以下を行う。
+
+- Case insensitive
+- Trim
+- 連続空白の正規化
+- displayName 完全一致を優先
+- 前方一致を部分一致より優先
+- Favorite を同スコアなら優先
+- Recent を同スコアなら優先
+
+### 10.3 Ranking
+
+初期 ranking 例:
+
+1. Exact displayName
+2. Prefix displayName
+3. Token match displayName
+4. Full path match
+5. Partial match
+
+Favorite / Recent は tie breaker として使用する。
+
+高度な fuzzy search は v1.0 の必須要件にしない。
+
+---
+
+## 11. Favorites
+
+Favorite は Application-level に保存する。
+
+理由:
+
+- Settings へのアクセス習慣はプロジェクト固有とは限らない
+- IDE を跨いだ利用より、まず同一 IDE 内での高速アクセスを優先する
+
+保存例:
+
+```kotlin
+data class FavoriteSettingsPage(
+    val configurableId: String,
+    val lastKnownDisplayName: String,
+    val lastKnownPath: String
+)
+```
+
+`lastKnownDisplayName` / `lastKnownPath` は対象が消えた際の UI 表示や診断用であり identity には使用しない。
+
+---
+
+## 12. Recent Settings
+
+Settings Jump 経由で開いたページを履歴へ保存する。
+
+初期仕様:
+
+- 最大 20 件
+- 重複は最新へ移動
+- Favorite とは別管理
+- 対象 Configurable が存在しない場合は UI 上で利用不可として扱うか、自動整理する
+
+JetBrains IDE 標準 Settings からユーザーが手動で開いたページの追跡は v1.0 では必須としない。
+
+理由は、Settings Jump の責務外の Settings dialog 内部状態を監視する必要が生じるため。
+
+---
+
+## 13. Shortcut 設計
+
+### 13.1 方針
+
+任意の Favorite ごとに Runtime Action を無制限生成する方式は採用しない。
+
+Keymap との安定した統合を優先し、固定 Slot 方式を採用する。
+
+例:
+
+```text
+Settings Jump: Open
+Settings Jump: Shortcut 1
+Settings Jump: Shortcut 2
+Settings Jump: Shortcut 3
+...
+Settings Jump: Shortcut 10
+```
+
+ユーザーは Settings Jump UI で Slot と Settings ページを紐付ける。
+
+### 13.2 初期 Slot 数
+
+v1.0 では 10 Slot を基本案とする。
+
+必要性が確認された場合のみ増やす。
+
+### 13.3 Slot 未設定時
+
+未設定 Slot の Action が実行された場合は何も開かず、軽量な通知または Settings Jump Popup への誘導を行う。
+
+### 13.4 Shortcut conflict
+
+Keymap への実際のキー割り当ては JetBrains IDE 標準 UI に任せる。
+
+Settings Jump 独自のキーバインドエディタは作らない。
+
+---
+
+## 14. 永続化
+
+Application-level `PersistentStateComponent` 等、IntelliJ Platform の公開された永続化機構を使用する。
+
+保存対象:
+
+```text
+Favorites
+Shortcut Slot assignments
+Recent Settings
+Plugin preferences
+```
+
+保存しないもの:
+
+```text
+JetBrains Settings values
+Third-party plugin Settings values
+```
+
+---
+
+## 15. アーキテクチャ
+
+```text
+┌────────────────────────────┐
+│        UI / Actions        │
+│ Search Popup / Favorites   │
+│ Shortcut Actions           │
+└─────────────┬──────────────┘
+              │
+              ▼
+┌────────────────────────────┐
+│    SettingsJumpService     │
+│ Search / Ranking / Open    │
+└───────┬───────────┬────────┘
+        │           │
+        ▼           ▼
+┌──────────────┐  ┌────────────────┐
+│ Page Index   │  │ User State     │
+│ Configurable │  │ Favorites      │
+│ metadata     │  │ Recent / Slots │
+└──────┬───────┘  └────────────────┘
+       │
+       ▼
+┌────────────────────────────┐
+│ IntelliJ Platform APIs     │
+│ Configurable / EP          │
+│ ShowSettingsUtil           │
+└────────────────────────────┘
+```
+
+### 15.1 責務
+
+#### SettingsPageIndex
+
+- Settings ページ検出
+- hierarchy 構築
+- ID lookup
+- plugin availability 反映
+
+#### SettingsSearchService
+
+- Query normalization
+- filtering
+- ranking
+
+#### SettingsNavigationService
+
+- ID から Configurable を解決
+- `ShowSettingsUtil` で Settings を開く
+- 解決不能時の安全な failure
+
+#### SettingsJumpState
+
+- Favorites
+- Recent
+- Shortcut Slot
+
+#### UI
+
+- Search Popup
+- Favorite 操作
+- Slot 割り当て
+
+---
+
+## 16. API 利用ポリシー
+
+### 16.1 利用可
+
+- IntelliJ Platform の public API
+- documented Extension Point
+- stable Configurable ID
+- Action System
+- PersistentStateComponent 等の公開永続化機構
+
+### 16.2 原則利用禁止
+
+- `@ApiStatus.Internal`
+- `@ApiStatus.Obsolete`
+- removal 予定の deprecated API
+- implementation package の直接利用
+- Reflection による private field / method 参照
+- Swing component structure 依存
+
+### 16.3 Experimental API
+
+`@ApiStatus.Experimental` は必須機能では原則避ける。
+
+使用する場合は以下を満たすこと。
+
+1. 代替 public stable API がない
+2. 機能を切り離せる
+3. Plugin Verifier で対象 IDE バージョンを確認する
+4. 設計書に理由を記録する
+
+---
+
+## 17. PoC Gate
+
+本格実装前に、以下の技術検証を完了する。
+
+PoC で成立しない場合は、v1.0 の仕様を修正してから開発へ進む。
+
+### Gate 1: Settings page discovery
+
+確認項目:
+
+- Application Settings を列挙できる
+- Project Settings を列挙できる
+- ID / displayName / parent hierarchy を取得できる
+- 主要ページが Settings UI の表示と一致する
+
+対象例:
+
+- Editor > General
+- Editor > Code Style
+- Version Control > Git
+- Build Tools > Gradle
+- Plugins
+- Keymap
+- HTTP Proxy
+
+### Gate 2: Dynamic Configurable
+
+確認項目:
+
+- Dynamic children がどの程度 index に含まれるか
+- class loading を過剰に発生させず検出可能か
+- IDE 起動時間へ悪影響を与えないか
+
+判定:
+
+- 全 dynamic page の完全対応は必須としない
+- ただし主要 Settings が大量に欠落する場合、検索機能の設計を再検討する
+
+### Gate 3: Direct navigation
+
+各 Settings page ID から、対象ページが選択された状態で Settings を開けること。
+
+### Gate 4: Third-party plugin
+
+標準的な Configurable EP を使用するプラグインを最低 2 種類確認する。
+
+確認項目:
+
+- ページ検出
+- hierarchy 表示
+- 直接 Open
+- プラグイン無効化後の安全な処理
+
+### Gate 5: Shortcut Slots
+
+確認項目:
+
+- 固定 Action が Settings > Keymap に表示される
+- ユーザーが任意キーを設定できる
+- Slot から Settings page を開ける
+- Slot mapping を変更しても Action ID は不変
+
+### Gate 6: Public API / Plugin Verifier
+
+- Internal API 使用なし
+- deprecated-for-removal 使用なし
+- Plugin Verifier で対象 IDE に重大な compatibility error がない
+
+---
+
+## 18. パフォーマンス
+
+Settings Jump は Settings へのアクセスを高速化するツールであり、起動時に IDE を遅くしてはならない。
+
+### 18.1 方針
+
+- IDE startup critical path で重い index 構築をしない
+- Configurable instance の不要な大量生成を避ける
+- Popup 初回起動時または適切な background timing で index を構築する
+- index を再利用する
+- Plugin enable / disable 等で必要な場合のみ invalidate する
+
+### 18.2 目標
+
+- Popup 表示は体感上即時
+- 数百 Settings page 程度では検索結果更新に待ちを感じさせない
+- Search 処理に PSI / VFS scan を使用しない
+
+---
+
+## 19. エラーハンドリング
+
+### 19.1 Favorite 対象が消えた
+
+例:
+
+- Plugin が uninstall された
+- Plugin が disabled になった
+- IDE upgrade で Configurable ID が変更された
+
+処理:
+
+```text
+Favorite entry を保持
+↓
+resolve 失敗
+↓
+Unavailable として扱う
+↓
+ユーザーが削除可能
+```
+
+自動的に displayName が同じ別ページへ移行しない。
+
+誤った Settings を開く方が危険なため、ID 不一致時は fail closed とする。
+
+### 19.2 Shortcut 対象が消えた
+
+- Settings を開かない
+- IDE error を発生させない
+- 軽量な通知を出す
+- Slot の再設定導線を提供する
+
+---
+
+## 20. テスト方針
+
+Settings Jump は設定値を変更しないため、テスト対象を Navigation に限定できる。
+
+### 20.1 Unit Test
+
+- Search normalization
+- Search ranking
+- hierarchy path 構築
+- Favorite state
+- Recent ordering
+- Shortcut Slot mapping
+- missing Configurable handling
+
+### 20.2 Integration Test
+
+- Settings page discovery
+- Application / Project scope
+- Configurable ID resolution
+- Settings dialog open
+- Third-party Configurable
+
+### 20.3 Manual Test
+
+最低限確認する IDE 操作:
+
+- Search → Open
+- Favorite → Open
+- Shortcut → Open
+- Project なし / あり
+- Plugin install / disable / uninstall
+- IDE restart 後の永続化
+- Keymap 変更
+- Dark / Light UI
+
+### 20.4 Compatibility Test
+
+Plugin Verifier を CI へ組み込む。
+
+対象 IDE バージョンは正式な supported range 確定後に明示する。
+
+---
+
+## 21. セキュリティ / プライバシー
+
+Settings Jump は外部通信を必要としない。
+
+- Telemetry: v1.0 では不要
+- External API: なし
+- AI API: なし
+- Settings value collection: なし
+- Project source code collection: なし
+
+保存するのは Settings page ID、Favorite、Recent、Shortcut Slot 等のローカル UI state のみとする。
+
+---
+
+## 22. リリース計画
+
+### v0.1 — Technical Foundation
+
+- PoC Gate 1〜3
+- Settings page index
+- Search Popup
+- Open Settings page
+
+完了条件:
+
+> 主要 Settings ページを検索し、正しいページへ直接移動できる。
+
+### v0.2 — Favorites
+
+- Favorite 登録 / 解除
+- 空検索時 Favorites 表示
+- 永続化
+
+### v0.3 — Recent
+
+- Recent history
+- 重複整理
+- 最大件数管理
+
+### v0.4 — Shortcut Slots
+
+- Slot 1〜10
+- Keymap integration
+- Slot assignment UI
+- unavailable handling
+
+### v0.5 — Compatibility
+
+- Third-party plugin Settings
+- Dynamic Configurable 検証結果反映
+- Plugin lifecycle への追従
+- Plugin Verifier CI
+
+### v0.9 — UX / Stabilization
+
+- Search ranking 調整
+- Keyboard navigation
+- UI polishing
+- Error handling
+- Performance tuning
+
+### v1.0 — Public Release
+
+- supported IDE range 確定
+- README / Marketplace metadata
+- Documentation
+- Regression test
+- Plugin Verifier clean
+
+---
+
+## 23. v1.0 受け入れ条件
+
+以下をすべて満たすこと。
+
+1. Settings Jump から主要 Settings ページを検索できる
+2. 検索結果から正しい Settings ページを直接開ける
+3. Settings の値を Settings Jump が変更しない
+4. Favorite を保存・復元できる
+5. Recent を保存・復元できる
+6. Shortcut Slot から登録ページを直接開ける
+7. 対象ページが存在しない場合も IDE error を発生させない
+8. 通常のサードパーティー Configurable を少なくとも基本的に扱える
+9. Internal API 依存を持たない
+10. deprecated-for-removal API 依存を持たない
+11. Plugin Verifier で supported IDE range に重大な compatibility error がない
+12. IDE 起動時間へ目立つ悪影響を与えない
+
+---
+
+## 24. 将来候補
+
+v1.0 完了後に需要を見て検討する。
+
+### 24.1 Settings aliases
+
+ユーザー独自の別名を Settings ページへ付ける。
+
+```text
+"proxy" -> HTTP Proxy
+"go fmt" -> Go > Code Style
+```
+
+### 24.2 Favorite groups
+
+```text
+Coding
+Review
+Build
+VCS
+```
+
+### 24.3 Import / Export
+
+Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけを export する。
+
+### 24.4 Search Everywhere integration
+
+公開・安定 API で十分な UX が実現できる場合のみ検討する。
+
+### 24.5 Better dynamic settings support
+
+公開 API の拡張や JetBrains Platform の変更に応じて改善する。
+
+---
+
+## 25. 明示的に行わない将来拡張
+
+以下は Settings Jump の責務を逸脱するため、原則として将来も対象外とする。
+
+- Settings 値を直接編集する Quick Toggle 化
+- IDE 設定 Profile の一括適用
+- 他プラグイン Settings 値の Reflection 操作
+- UI component を自動クリックする automation
+
+これらが必要になった場合は Settings Jump へ無理に追加せず、別プロダクトとして評価する。
+
+---
+
+## 26. 設計判断まとめ
+
+| 論点 | 判断 |
+|---|---|
+| 主目的 | Settings への高速アクセス |
+| 設定値変更 | 行わない |
+| Settings page 検索 | 行う |
+| Favorite | 行う |
+| Recent | 行う |
+| Shortcut | 固定 Slot 方式 |
+| Settings identity | Configurable ID を優先 |
+| Internal API | 原則禁止 |
+| Swing UI 解析 | 禁止 |
+| Third-party Settings | 標準 Configurable の範囲で対応 |
+| Dynamic Settings | PoC Gate でカバー率確認 |
+| AI / 外部通信 | なし |
+
+Settings Jump の価値は、Settings を再実装することではない。
+
+**「設定を変更する場所は Settings のまま、そこへ到達するまでの摩擦だけを取り除く」**ことをプロダクトの中心原則とする。
