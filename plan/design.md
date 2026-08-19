@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.3
+- Version: 0.4
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -12,6 +12,7 @@
 | 0.1 | 初版 |
 | 0.2 | 設計レビューを反映。Eligible Settings Page 境界を定義し、PoC Gate を定量的 GO/NO-GO 判定へ強化。Stable ID / 表示名取得 / 階層構築 / ナビゲーション経路の前提を現行 SDK と照合して修正。対象環境・ビルド基盤・スレッディング・永続化スキーマ・テスト実行形態を確定。リリース計画を再構成 |
 | 0.3 | 第2回レビューを反映。Eligible(識別の安定性)と Available(現在の context での存在)を分離し `ConfigurableProvider` による contextual availability に対応。Index を Application / Project の二層に分離。Gate 1/2 の reference 測定方法を明記(Internal API 禁止は配布 runtime code への制約と明確化)。日本語 UI での英語検索の保証範囲を限定。Nested static Configurable の親子解決を明記 |
+| 0.4 | 第3回レビューを反映。Navigation を preflight + navigation の二段構成にし、`ShowSettingsUtil` の predicate 不一致例外を IDE へ漏らさない fail closed 境界を明記。二層 index の役割を「scope と lifecycle の分離」に修正(availability は Navigation 時のみ評価)。`childrenEPName` を v1.0 Non-eligible と定義。節参照の修正、v0.5 / v1.0 のリリース名称変更 |
 
 ---
 
@@ -80,7 +81,7 @@ Shortcut Slots     = コア価値
 Recent             = 補助価値
 ```
 
-「Gradle Settings を検索できる」ではなく、**「Gradle Settings を好きなキー1発で開ける」**が製品の中心である。この優先順位はリリース計画(22節)に反映する。
+「Gradle Settings を検索できる」ではなく、**「Gradle Settings を好きなキー1発で開ける」**が製品の中心である。この優先順位はリリース計画(24節)に反映する。
 
 ---
 
@@ -237,6 +238,7 @@ Non-eligible ページが実際にどの程度存在するかは PoC Gate 1 で�
 - Settings 値の直接変更
 - Non-eligible ページの救済(合成キー、推定マッチング等)
 - Dynamic Configurable(`Configurable.Composite#getConfigurables()` / `dynamic=true`)の子ページ対応
+- `childrenEPName` による子ページ供給の対応(8.2節。Gate 2 で出現率のみ測定)
 - Boolean Toggle
 - Settings Profile
 - 設定値の Import / Export
@@ -394,15 +396,24 @@ Parent relationship source:
 3. top-level group
 ```
 
-Nested static Configurable は XML 宣言由来の静的な構造であり、Dynamic ではない。したがって:
+Nested static Configurable は XML 宣言由来の静的な構造であり、Dynamic ではない。子ページの供給形態は以下のとおり分類する。
 
 ```text
-Nested static Configurable
-→ Eligible 対象
+Nested <configurable>(XML ネスト宣言)
+→ Eligible 候補
 
-dynamic=true / Composite runtime child
+childrenEPName(別 EP を子として参照する正式な属性)
+→ v1.0 では Non-eligible
+→ Gate 2 で出現率のみ測定
+
+dynamic=true
+→ Non-eligible
+
+runtime Composite child(Configurable.Composite#getConfigurables())
 → Non-eligible
 ```
+
+`childrenEPName` は静的属性だが、参照先 EP の列挙が `ConfigurableEP` メタデータのみで安全に行えるかは自明でないため、v1.0 では対象外とする。Gate 2 の測定で出現率が高く、かつメタデータのみで安全に列挙できるケースが確認できた場合に v1.x で拡張を検討する。
 
 例:
 
@@ -464,7 +475,9 @@ Project あり
 
 論理 API としては `SettingsPageIndex.forContext(project: Project?)` の形で統合ビューを提供する。
 
-複数 Project ウィンドウを開いている場合、各ウィンドウの検索対象はそのウィンドウの Project の index であり、これは「Action が実行された DataContext の Project を使う」という Navigation 方針(10.2節)と一貫する。Project ごとに `ConfigurableProvider` の判定結果(4.3節)が異なり得ることにも、この分離で自然に対応できる。
+複数 Project ウィンドウを開いている場合、各ウィンドウの検索対象はそのウィンドウの Project の index であり、これは「Action が実行された DataContext の Project を使う」という Navigation 方針(10.3節)と一貫する。
+
+なお、この二層分離が担うのは **scope と lifecycle の分離**である。index は EP メタデータのみから構築される(9.1節)ため、`ConfigurableProvider` 由来ページの実際の availability は index には反映されない。availability は Navigation 時の preflight(10.2節)でのみ評価する。検索結果上は CONTEXTUAL ページに「context によって利用できない場合がある」ことを示すに留め、検索のたびに Provider を評価することはしない(軽量な Settings launcher という性格を維持するため)。
 
 ### 9.3 Dynamic Settings
 
@@ -522,10 +535,38 @@ public predicate 経路は「保存 ID を渡して O(1) で開く」API では�
 
 したがって:
 
-- predicate traversal の**実測性能**を PoC Gate 3 で検証する(17節)
+- predicate traversal の**実測性能**を PoC Gate 3 で検証する(18節)
 - 探索が dynamic child の生成など想定外の副作用を起こさないことも同 Gate で確認する
 
-### 10.2 Project scope の解決
+### 10.2 Preflight + Navigation
+
+`ShowSettingsUtil.showSettingsDialog(project, predicate, ...)` の現行実装は、predicate に一致する Configurable が見つからない場合に**例外を送出する**(`ConfigurableVisitor.find(...) ?: error(...)`)。つまり素朴に呼ぶだけでは Gate 3 の「fail closed(何も開かず、エラーも発生させない)」を満たせない。
+
+そこで Navigation は **preflight + navigation** の二段構成とする。
+
+```text
+Shortcut / Favorite 実行
+        ↓
+対象 EP が現在の context に存在するか確認
+        ↓
+CONTEXTUAL(4.3節)なら availability を確認
+  (public な ConfigurableEP.canCreateConfigurable() を評価。
+   provider の場合は内部で provider.canCreateConfigurable() が評価される)
+        ↓
+Unavailable
+→ ShowSettingsUtil を呼ばない
+→ 軽量通知のみ
+        ↓
+Available
+→ ShowSettingsUtil で開く
+```
+
+補足:
+
+- **index 構築時には Provider を生成しない方針(9.1節)を維持する**。availability 評価はユーザーが実際に Open した瞬間のみ行う
+- preflight 通過後も plugin unload 等との race は残り得るため、`ShowSettingsUtil` 呼び出し境界を try-catch で保護し、**解決不能でも IDE へ例外を漏らさない**。失敗時は軽量通知に落とす
+
+### 10.3 Project scope の解決
 
 Favorite / Slot は Application-level に保存されるが(12節)、`PROJECT` scope のページを開くには Project が必要である。挙動を以下に確定する。
 
@@ -545,7 +586,7 @@ PROJECT page + Project なし(Welcome 画面等)
 → Action が実行された DataContext の Project を使用する
 ```
 
-### 10.3 禁止事項
+### 10.4 禁止事項
 
 以下の手法は禁止する。
 
@@ -776,7 +817,8 @@ Third-party plugin Settings values
 
 - ID から Configurable を解決(`ConfigurableWithId`)
 - `ShowSettingsUtil` public overload で Settings を開く
-- Project scope 解決(10.2節)
+- Preflight による availability 評価(10.2節)
+- Project scope 解決(10.3節)
 - 解決不能時の fail closed
 
 #### SettingsJumpState
@@ -878,6 +920,7 @@ Settings Jump 本体は Dynamic を列挙せず、Configurable を生成せず�
 
 - 静的 EP 宣言のみで index した場合に、Settings UI 表示との差分がどの程度あるか
 - 主要ページ(Gate 1 対象例)が dynamic child に該当していないか
+- `childrenEPName` 由来ページの出現率(v1.0 対象外の妥当性確認。8.2節)
 - index 構築が過剰な class loading を発生させないこと
 - IDE 起動時間へ悪影響を与えないこと
 
@@ -896,7 +939,7 @@ Settings Jump 本体は Dynamic を列挙せず、Configurable を生成せず�
 4. Application / Project scope の双方で動作する
 5. predicate traversal が dynamic child の生成等による異常な副作用を起こさない
 6. Settings 通常起動と比較して許容できない追加遅延がない(実測する)
-7. 対象 ID が消えている場合 fail closed する(何も開かず、エラーも発生させない)
+7. 対象 ID が消えている場合 fail closed する(何も開かず、エラーも発生させない)。preflight(10.2節)で防ぎ、`ShowSettingsUtil` の predicate 不一致例外(`ConfigurableVisitor.find ?: error(...)`)を IDE へ漏らさないこと
 
 **この Gate に落ちた場合、Favorite / Slot 実装へ進まない。**
 
@@ -937,7 +980,7 @@ Settings Jump は Settings へのアクセスを高速化するツールであ�
 - IDE startup critical path で index 構築をしない
 - Configurable インスタンスを index 構築で生成しない(9.1節)
 - Popup 初回起動時または適切な background timing で index を構築する
-- index を再利用し、`DynamicPluginListener` イベント時のみ invalidate する(9.4節)
+- index を再利用し、`DynamicPluginListener` イベント時のみ invalidate する(9.5節)
 
 ### 19.2 目標
 
@@ -1112,7 +1155,7 @@ Settings Jump は外部通信を必要としない。
 - Slot assignment UI
 - unavailable handling
 
-### v0.5 — Recent + Compatibility
+### v0.5 — Public Preview(Marketplace Release)
 
 - Recent history(重複整理・最大件数管理)
 - Third-party plugin Settings(Gate 4)
@@ -1130,7 +1173,7 @@ Settings Jump は外部通信を必要としない。
 - Error handling
 - Performance tuning
 
-### v1.0 — Public Release
+### v1.0 — Stable Release
 
 - README / Marketplace metadata
 - Documentation
@@ -1230,7 +1273,9 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 | 階層 | Navigation Path(公開メタデータ由来)。UI ツリーの完全再現は保証しない |
 | 親子解決 | explicit parentId → nested EP → top-level group |
 | Nested static Configurable | Eligible 対象(Dynamic とは区別) |
+| childrenEPName | v1.0 対象外。Gate 2 で出現率のみ測定 |
 | Dynamic Settings | v1.0 対象外。カバレッジは Gate 2 で実測 |
+| Navigation 実行 | preflight(availability 評価は Open 時のみ)+ try-catch 境界で fail closed |
 | 英語検索の保証 | ID / plugin ID / alias 由来 token に限定 |
 | Gate 測定 | Starter+Driver で reference set 取得(Internal API 禁止は配布 runtime code のみ) |
 | Navigation | `ShowSettingsUtil` public predicate + `ConfigurableWithId`。性能は Gate 3 で実測 |
