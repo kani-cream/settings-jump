@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.2
+- Version: 0.3
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -11,6 +11,7 @@
 |---|---|
 | 0.1 | 初版 |
 | 0.2 | 設計レビューを反映。Eligible Settings Page 境界を定義し、PoC Gate を定量的 GO/NO-GO 判定へ強化。Stable ID / 表示名取得 / 階層構築 / ナビゲーション経路の前提を現行 SDK と照合して修正。対象環境・ビルド基盤・スレッディング・永続化スキーマ・テスト実行形態を確定。リリース計画を再構成 |
+| 0.3 | 第2回レビューを反映。Eligible(識別の安定性)と Available(現在の context での存在)を分離し `ConfigurableProvider` による contextual availability に対応。Index を Application / Project の二層に分離。Gate 1/2 の reference 測定方法を明記(Internal API 禁止は配布 runtime code への制約と明確化)。日本語 UI での英語検索の保証範囲を限定。Nested static Configurable の親子解決を明記 |
 
 ---
 
@@ -171,9 +172,46 @@ Non-eligible
 
 クラス名 + 親 ID などの**合成キーによる救済は行わない**。永続化できる確証がないページは永続化対象にしない。これが fail closed 原則(3.3)と最も整合する。
 
-### 4.3 Eligible 率の検証
+### 4.3 Eligible と Available の分離
 
-Non-eligible ページが実際にどの程度存在するかは PoC Gate 1 で定量的に測定する(17節)。
+Eligible は「識別の安定性」に関する性質であり、「今この瞬間に開けるか」を保証するものではない。両者を明確に分離する。
+
+```text
+Eligible
+= Settings Jump が安全に識別・永続化できるページ
+  (identity は Application 的に安定)
+
+Available
+= 現在の Project / context で実際に開けるページ
+```
+
+分離が必要な理由: `ConfigurableProvider` は、実行環境によって Settings ページを出したり出さなかったりするための**正式な仕組み**である(`canCreateConfigurable()` が現在の context で表示すべき場合のみ true を返す。例: JetBrains 本体の `VcsManagerConfigurableProvider` は利用可能な VCS が存在する Project でのみ true)。
+
+つまり EP メタデータ上は完全に Eligible に見えるページが、
+
+```text
+Project A → canCreateConfigurable() = true
+Project B → canCreateConfigurable() = false
+```
+
+となり得る。これは設計の矛盾ではなく、「ページの identity は安定しているが、そのページが今存在するかは Project context に依存し得る」という性質として扱う。
+
+```kotlin
+enum class AvailabilityKind {
+    STATIC,      // EP 直接宣言。context 非依存
+    CONTEXTUAL   // ConfigurableProvider 由来。context により存在しないことがある
+}
+```
+
+挙動:
+
+- CONTEXTUAL なページも **Eligible であり、Favorite / Slot 登録を禁止しない**
+- Navigation 時に現在の context で resolve できなければ fail closed(21節)
+- UI 上は「この設定はプロジェクトによって利用できない場合がある」として扱えれば十分とする
+
+### 4.4 Eligible 率の検証
+
+Non-eligible ページが実際にどの程度存在するかは PoC Gate 1 で定量的に測定する(18節。測定方法は Gate 1 に明記)。
 
 日常利用される主要ページの大部分が Non-eligible と判明した場合は、**実装を工夫して救済するのではなく、企画そのものを再評価する**。
 
@@ -314,7 +352,8 @@ data class SettingsPage(
     val parentId: String?,
     val path: List<String>,      // Navigation Path(表示・検索用)
     val scope: SettingsScope,
-    val sourcePluginId: String?
+    val sourcePluginId: String?,
+    val availability: AvailabilityKind  // 4.3節
 )
 
 enum class SettingsScope {
@@ -324,6 +363,8 @@ enum class SettingsScope {
 ```
 
 `UNKNOWN` scope は設けない。scope を判定できないページは Eligible でないため、モデルに現れない(fail closed)。
+
+`availability` は EP 宣言形態から判定する(provider 属性由来なら CONTEXTUAL、instance/class 直接宣言なら STATIC)。
 
 ### 8.1 Stable key
 
@@ -341,7 +382,27 @@ stable ID を取得できないページは index に含めない(4.2節)。合�
 
 ### 8.2 Navigation Path
 
-`parentId` と group 情報から表示用 path を構築する。
+親子関係は以下の優先順で解決し、表示用 path を構築する。
+
+```text
+Parent relationship source:
+
+1. explicit parentId
+2. nested ConfigurableEP parent
+   (親 EP 宣言の内側にネストされた <configurable>。
+    子自身は parentId を持たず、XML のネスト自体が親子を表現する)
+3. top-level group
+```
+
+Nested static Configurable は XML 宣言由来の静的な構造であり、Dynamic ではない。したがって:
+
+```text
+Nested static Configurable
+→ Eligible 対象
+
+dynamic=true / Composite runtime child
+→ Non-eligible
+```
 
 例:
 
@@ -374,13 +435,44 @@ path は検索補助・表示用であり、永続化上の identity には使�
 
 **Configurable インスタンスの生成は index 構築では行わない**。EP メタデータに `displayName` / `key` が宣言されていないページは、インスタンス化して `getDisplayName()` を呼べば名前を取得できるが、それは行わず Non-eligible として除外する(4節)。
 
-### 9.2 Dynamic Settings
+### 9.2 Index の二層構造
+
+`applicationConfigurable` と `projectConfigurable` は寿命が異なるため、index を単一で共有せず二層に分ける。
+
+```text
+ApplicationSettingsIndex
+- applicationConfigurable 由来
+- Application lifecycle にキャッシュ
+- 全 Project ウィンドウで共有
+
+ProjectSettingsIndex(Project)
+- projectConfigurable 由来
+- Project ごとに構築・キャッシュ
+- Project lifecycle に従い破棄
+```
+
+検索対象は context によって決まる。
+
+```text
+Welcome 画面(Project なし)
+→ ApplicationSettingsIndex のみ
+
+Project あり
+→ ApplicationSettingsIndex
+  + その Project の ProjectSettingsIndex
+```
+
+論理 API としては `SettingsPageIndex.forContext(project: Project?)` の形で統合ビューを提供する。
+
+複数 Project ウィンドウを開いている場合、各ウィンドウの検索対象はそのウィンドウの Project の index であり、これは「Action が実行された DataContext の Project を使う」という Navigation 方針(10.2節)と一貫する。Project ごとに `ConfigurableProvider` の判定結果(4.3節)が異なり得ることにも、この分離で自然に対応できる。
+
+### 9.3 Dynamic Settings
 
 `dynamic=true` および `Configurable.Composite#getConfigurables()` による動的な子ページは v1.0 では対象外とする(5.2節)。
 
 静的 EP 宣言のみで実用上十分なカバレッジがあるかは PoC Gate 2 で定量的に確認する。
 
-### 9.3 Third-party plugin
+### 9.4 Third-party plugin
 
 サードパーティープラグインが通常の IntelliJ Platform Settings EP を Eligible 条件を満たす形で使用している場合は検索対象に含める。
 
@@ -392,19 +484,21 @@ path は検索補助・表示用であり、永続化上の identity には使�
 - 標準 Configurable tree へ登録されない設定画面
 - Eligible 条件(4節)を満たさない EP 登録
 
-### 9.4 Index の無効化と再構築
+### 9.5 Index の無効化と再構築
 
 プラグインの動的 load / unload は `DynamicPluginListener` で検知する。
 
 ```text
 Plugin loaded / unloaded
         ↓
-index generation++(invalidate のみ)
+index generation++(invalidate のみ。Application / Project 両層)
         ↓
 次回 Popup open 時に lazy rebuild
 ```
 
 イベントのたびに即座に再構築はしない。invalidate + lazy rebuild とする。
+
+ProjectSettingsIndex は加えて Project close で破棄される(9.2節)。
 
 ---
 
@@ -491,6 +585,8 @@ org.jetbrains.plugins.gradle...
 ```
 
 ID・group ID 等の英語由来 token を index に含めることで、日本語 UI 環境でも英語クエリ(`gradle` 等)が機能する。英語名の翻訳 DB を自前で維持する必要はない。
+
+**保証範囲の限定**: 非英語 UI での英語検索が保証されるのは、**ID / plugin ID / canonical group alias から取得できる英語 token に限る**。表示名の英語版(例: 表示「外観」に対する "Appearance")が ID に含まれない場合、その英語名での検索は保証しない。localized label と canonical English label の両取得は v1.0 では行わない(Localization 処理が一段複雑になり、主目的から外れるため。将来候補 26節)。
 
 ### 11.2 Search normalization
 
@@ -661,12 +757,14 @@ Third-party plugin Settings values
 
 ### 16.1 責務
 
-#### SettingsPageIndex
+#### SettingsPageIndex(二層: Application / Project)
 
 - Eligible Page 検出(EP メタデータのみ)
-- hierarchy 構築
+- hierarchy 構築(explicit parentId / nested EP / group)
 - ID lookup
+- `forContext(project)` による統合ビュー提供(9.2節)
 - `DynamicPluginListener` による invalidate + lazy rebuild
+- ProjectSettingsIndex は Project lifecycle に従う
 
 #### SettingsSearchService
 
@@ -721,6 +819,10 @@ Third-party plugin Settings values
 - Reflection による private field / method 参照
 - Swing component structure 依存
 
+**適用範囲**: 上記の禁止は**配布 Plugin の runtime code に対する制約**である。PoC Gate の測定専用コード(18節 Gate 1)およびテストコードには適用しない。ただし測定・テストコードが配布物へ混入しないことをビルド構成で保証する。
+
+なお Starter + Driver の UI テスト部分は現在 Experimental 扱いだが、**製品 runtime ではなくテスト限定依存**であるため使用を認める。
+
 ### 17.3 Experimental API
 
 `@ApiStatus.Experimental` は必須機能では原則避ける。
@@ -745,6 +847,15 @@ Third-party plugin Settings values
 - Application / Project Settings を EP メタデータのみから列挙できる
 - ID / displayName(または key+bundle)/ parent hierarchy を Configurable インスタンス生成なしで取得できる
 - **Eligible 率の測定**: 素の IDE(+ 代表的プラグイン数個)の全 Settings ページに対する Eligible Page の比率を記録する
+
+**Reference set(分母)の測定方法**:
+
+Settings Jump 本体は Dynamic を列挙せず、Configurable を生成せず、Internal API も使わないため、「Settings UI に実際に表示される全ページ数」は製品コードの経路では取得できない。分母は Gate 測定専用の別経路で取得する。
+
+- **主手段(案A)**: Starter + Driver でテスト IDE の Settings tree を実際に巡回し、UI Inspector 相当の情報(Configurable ID 等)から reference set を作成する
+- **代替(案B)**: PoC 専用 diagnostic code(`src/poc` 等。配布物には絶対に含めない)から IDE 内部の列挙結果を reference として取得する
+
+いずれの場合も、**「Internal API 禁止(17節)は配布 Plugin の runtime code に対する制約」であり、Gate 測定用の使い捨てコードには適用しない**ことを明示する。測定手順は再現可能な形で記録する。
 
 対象例(すべて Eligible であることを確認する):
 
@@ -864,12 +975,13 @@ untilBuild は原則指定しない(Platform 推奨に従う)。supported range 
 
 ## 21. エラーハンドリング
 
-### 21.1 Favorite 対象が消えた
+### 21.1 Favorite 対象が消えた・現在の context に存在しない
 
 例:
 
 - Plugin が uninstall / disable された
 - IDE upgrade で Configurable ID が変更された
+- CONTEXTUAL なページ(`ConfigurableProvider` 由来)が現在の Project では提供されない(4.3節)
 
 処理:
 
@@ -884,6 +996,8 @@ Unavailable として扱う
 ```
 
 自動的に displayName が同じ別ページへ移行しない。ID 不一致時は fail closed とする。
+
+CONTEXTUAL なページの場合、Unavailable は恒久的な破損ではなく「この Project では利用できない」状態であり得る。entry は削除せず保持し、別の Project では通常どおり機能する。UI 上は「この設定はプロジェクトによって利用できない場合がある」ことが分かる表示とする。
 
 ### 21.2 Shortcut 対象が消えた
 
@@ -1042,7 +1156,7 @@ Settings Jump は外部通信を必要としない。
 11. deprecated-for-removal API 依存を持たない
 12. Plugin Verifier で supported IDE range に重大な compatibility error がない
 13. IDE 起動時間へ目立つ悪影響を与えない
-14. 日本語 UI 環境で英語クエリによる検索が機能する
+14. 日本語 UI 環境で、ID / plugin ID / canonical group alias 由来の英語 token による検索が機能する(表示名の英語版そのものの検索は保証しない)
 
 ---
 
@@ -1081,6 +1195,10 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 
 公開 API の改善により Eligible 条件を満たせるようになった場合のみ拡大する。合成キーによる救済は将来も行わない。
 
+### 26.7 Canonical English label の併載
+
+非英語 UI で表示名の英語版(localized label + canonical English label の両取得)による検索を提供する。v1.0 では保証範囲外(11.1節)。
+
 ---
 
 ## 27. 明示的に行わない将来拡張
@@ -1107,8 +1225,14 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 | Settings identity | stable Configurable ID のみ。合成キーは作らない |
 | ID なしページ | v1.0 対象外(fail closed) |
 | 表示名取得 | EP メタデータのみ。インスタンス化して取得しない |
+| Eligible / Available | 分離。CONTEXTUAL(Provider 由来)も Favorite 可、開けない時は fail closed |
+| Index 構造 | Application / Project の二層。`forContext(project)` で統合 |
 | 階層 | Navigation Path(公開メタデータ由来)。UI ツリーの完全再現は保証しない |
+| 親子解決 | explicit parentId → nested EP → top-level group |
+| Nested static Configurable | Eligible 対象(Dynamic とは区別) |
 | Dynamic Settings | v1.0 対象外。カバレッジは Gate 2 で実測 |
+| 英語検索の保証 | ID / plugin ID / alias 由来 token に限定 |
+| Gate 測定 | Starter+Driver で reference set 取得(Internal API 禁止は配布 runtime code のみ) |
 | Navigation | `ShowSettingsUtil` public predicate + `ConfigurableWithId`。性能は Gate 3 で実測 |
 | PROJECT scope | DataContext の Project。Project なしは fail closed |
 | scope UNKNOWN | 廃止(判定不能 = Non-eligible) |
