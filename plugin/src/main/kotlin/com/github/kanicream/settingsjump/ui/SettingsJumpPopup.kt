@@ -11,6 +11,8 @@ import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.DoubleClickListener
+import com.intellij.ui.ScrollingUtil
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
@@ -20,6 +22,7 @@ import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.event.ActionEvent
+import java.awt.event.MouseEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -90,31 +93,33 @@ internal class SettingsJumpPopup(private val project: Project?) {
 
     private fun wireKeys(panel: JPanel) {
         val editor = searchField.textEditor
-        bind(editor, "DOWN", "sj-down") { moveSelection(1) }
-        bind(editor, "UP", "sj-up") { moveSelection(-1) }
+        // Arrow keys / PageUp / PageDown drive the list while focus stays in the
+        // search field — the platform idiom for search-list popups.
+        ScrollingUtil.installActions(list, editor)
         bind(editor, "ENTER", "sj-open") { openSelected() }
         bind(editor, "shift ENTER", "sj-favorite") { toggleFavoriteOnSelected() }
         for (digit in 0..9) {
             val slot = if (digit == 0) 10 else digit
             val stroke = if (SystemInfo.isMac) "meta $digit" else "control $digit"
+            bind(editor, stroke, "sj-slot-$slot") { assignSlotToSelected(slot) }
             bind(panel, stroke, "sj-slot-$slot") { assignSlotToSelected(slot) }
         }
+        object : DoubleClickListener() {
+            override fun onDoubleClick(event: MouseEvent): Boolean {
+                openSelected()
+                return true
+            }
+        }.installOn(list)
     }
 
+    // WHEN_FOCUSED on the text editor: its own default bindings (e.g. ENTER ->
+    // notify-field-accept) win over ancestor-level maps, so bind at the same level.
     private fun bind(component: JComponent, keystroke: String, name: String, action: () -> Unit) {
-        component.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT)
+        component.getInputMap(JComponent.WHEN_FOCUSED)
             .put(KeyStroke.getKeyStroke(keystroke), name)
         component.actionMap.put(name, object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent) = action()
         })
-    }
-
-    private fun moveSelection(delta: Int) {
-        val size = listModel.size
-        if (size == 0) return
-        val next = ((list.selectedIndex + delta) % size + size) % size
-        list.selectedIndex = next
-        list.ensureIndexIsVisible(next)
     }
 
     private fun openSelected() {
