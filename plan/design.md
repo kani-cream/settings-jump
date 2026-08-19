@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.6
+- Version: 0.7
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -15,6 +15,7 @@
 | 0.4 | 第3回レビューを反映。Navigation を preflight + navigation の二段構成にし、`ShowSettingsUtil` の predicate 不一致例外を IDE へ漏らさない fail closed 境界を明記。二層 index の役割を「scope と lifecycle の分離」に修正(availability は Navigation 時のみ評価)。`childrenEPName` を v1.0 Non-eligible と定義。節参照の修正、v0.5 / v1.0 のリリース名称変更 |
 | 0.5 | Platform ソース照合による精密化。SDK 上 `id` / display metadata は推奨であり必須ではないと訂正(Eligible 条件は Platform 要件より意図的に厳しいと明記)。bundle 省略時は plugin descriptor default bundle で key を解決できるため Eligible 判定に含める。`nonDefaultProject` により EP 直接宣言でも context 依存になり得るため CONTEXTUAL の定義を拡張し、preflight は AvailabilityKind に関係なく全ページで実施(AvailabilityKind は UI hint)。preflight に `ep.isAvailable()` を追加。例外方針を明確化(Platform cancellation は再送出) |
 | 0.6 | リリース計画を Phase 0(Technical Validation・version なし)→ v0.5(Public Preview・全機能)→ v1.0(Stable・安定化のみ)の3段階に簡素化。中間バージョン(v0.1〜v0.4、v0.9)を廃止し、進行管理はコミット・Issue 単位とする |
+| 0.7 | 将来候補にマウス向けエントリポイント(ツールバー / ステータスバーのアイコンから Search Popup を開く。Shortcut Slot と併用)を追加。Tool Window 不採用の判断は維持 |
 
 ---
 
@@ -1250,7 +1251,15 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 
 公開 API の改善により Eligible 条件を満たせるようになった場合のみ拡大する。合成キーによる救済は将来も行わない。
 
-### 26.7 Canonical English label の併載
+### 26.7 マウス向けエントリポイント
+
+Keyboard-first 原則(7.4節)は維持したまま、キー割り当てを覚えたくないユーザー向けの補助入口として、**メインツールバーまたはステータスバーにアイコンを1つ置き、クリックで Search Popup を開く**方式を検討する(Popup 先頭は Favorites なので、クリック → クリックの2ステップで Favorite に到達できる)。
+
+- Shortcut Slot との併用を前提とする(Slot はキー1発、アイコンはマウス2ステップ)
+- Tool Window は採用しない(6.1節の判断を維持。常駐 UI は Settings Jump のライフサイクルに合わない)
+- v0.5 には含めず、Public Preview のフィードバックを見て判断する
+
+### 26.8 Canonical English label の併載
 
 非英語 UI で表示名の英語版(localized label + canonical English label の両取得)による検索を提供する。v1.0 では保証範囲外(11.1節)。
 
