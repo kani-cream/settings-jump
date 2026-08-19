@@ -21,14 +21,20 @@ internal data class RawPage(
  * Reads Configurable EP declarations using metadata only — never instantiates a
  * Configurable or a provider (design.md 9.1). Pages that fail the Eligible
  * conditions (design.md section 4) are skipped: no stable id, no resolvable
- * display name, dynamic=true, or childrenEPName.
+ * display name, or dynamic=true. Children supplied via nested <configurable>
+ * and via childrenEPName-referenced EPs are both included (design.md 8.2).
  */
 internal object ConfigurableMetadataReader {
 
     private val log = logger<ConfigurableMetadataReader>()
 
-    fun read(ep: ConfigurableEP<*>, scope: SettingsScope, parentId: String? = null): List<RawPage> {
-        if (ep.dynamic || !ep.childrenEPName.isNullOrBlank()) return emptyList()
+    fun read(
+        ep: ConfigurableEP<*>,
+        scope: SettingsScope,
+        parentId: String? = null,
+        visitedChildEps: MutableSet<String> = mutableSetOf(),
+    ): List<RawPage> {
+        if (ep.dynamic) return emptyList()
         val id = ep.id?.takeIf { it.isNotBlank() } ?: return emptyList()
         val displayName = resolveDisplayName(ep) ?: return emptyList()
         val page = RawPage(
@@ -40,8 +46,21 @@ internal object ConfigurableMetadataReader {
             sourcePluginId = ep.pluginDescriptor?.pluginId?.idString,
             availability = availabilityKind(ep),
         )
-        val nested = ep.children.orEmpty().flatMap { read(it, scope, parentId = id) }
-        return listOf(page) + nested
+        val nested = ep.children.orEmpty().flatMap { read(it, scope, id, visitedChildEps) }
+        val fromChildEp = childrenFromReferencedEp(ep, scope, id, visitedChildEps)
+        return listOf(page) + nested + fromChildEp
+    }
+
+    private fun childrenFromReferencedEp(
+        ep: ConfigurableEP<*>,
+        scope: SettingsScope,
+        parentId: String,
+        visitedChildEps: MutableSet<String>,
+    ): List<RawPage> {
+        val epName = ep.childrenEPName?.takeIf { it.isNotBlank() } ?: return emptyList()
+        if (!visitedChildEps.add(epName)) return emptyList()
+        return ConfigurableEpTraversal.childEps(epName)
+            .flatMap { read(it, scope, parentId, visitedChildEps) }
     }
 
     /**

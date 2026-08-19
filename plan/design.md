@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.7
+- Version: 0.8
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -16,6 +16,7 @@
 | 0.5 | Platform ソース照合による精密化。SDK 上 `id` / display metadata は推奨であり必須ではないと訂正(Eligible 条件は Platform 要件より意図的に厳しいと明記)。bundle 省略時は plugin descriptor default bundle で key を解決できるため Eligible 判定に含める。`nonDefaultProject` により EP 直接宣言でも context 依存になり得るため CONTEXTUAL の定義を拡張し、preflight は AvailabilityKind に関係なく全ページで実施(AvailabilityKind は UI hint)。preflight に `ep.isAvailable()` を追加。例外方針を明確化(Platform cancellation は再送出) |
 | 0.6 | リリース計画を Phase 0(Technical Validation・version なし)→ v0.5(Public Preview・全機能)→ v1.0(Stable・安定化のみ)の3段階に簡素化。中間バージョン(v0.1〜v0.4、v0.9)を廃止し、進行管理はコミット・Issue 単位とする |
 | 0.7 | 将来候補にマウス向けエントリポイント(ツールバー / ステータスバーのアイコンから Search Popup を開く。Shortcut Slot と併用)を追加。Tool Window 不採用の判断は維持 |
+| 0.8 | Phase 0 Finding B を受け、`childrenEPName` を v1.0 対応に変更(参照先 EP を公開 ExtensionPointName でメタデータのみ列挙、各エントリを通常の Eligible 条件で判定、宣言ページ自体も Eligible、列挙不能は fail soft)。Code Completion 等の Editor 配下ページが検索対象になる |
 
 ---
 
@@ -254,7 +255,6 @@ Non-eligible ページが実際にどの程度存在するかは PoC Gate 1 で�
 - Settings 値の直接変更
 - Non-eligible ページの救済(合成キー、推定マッチング等)
 - Dynamic Configurable(`Configurable.Composite#getConfigurables()` / `dynamic=true`)の子ページ対応
-- `childrenEPName` による子ページ供給の対応(8.2節。Gate 2 で出現率のみ測定)
 - Boolean Toggle
 - Settings Profile
 - 設定値の Import / Export
@@ -419,8 +419,8 @@ Nested <configurable>(XML ネスト宣言)
 → Eligible 候補
 
 childrenEPName(別 EP を子として参照する正式な属性)
-→ v1.0 では Non-eligible
-→ Gate 2 で出現率のみ測定
+→ 対応する(v1.0)。参照先 EP を公開 ExtensionPointName で列挙し、
+  各エントリを通常の Eligible 条件で個別判定する
 
 dynamic=true
 → Non-eligible
@@ -429,7 +429,13 @@ runtime Composite child(Configurable.Composite#getConfigurables())
 → Non-eligible
 ```
 
-`childrenEPName` は静的属性だが、参照先 EP の列挙が `ConfigurableEP` メタデータのみで安全に行えるかは自明でないため、v1.0 では対象外とする。Gate 2 の測定で出現率が高く、かつメタデータのみで安全に列挙できるケースが確認できた場合に v1.x で拡張を検討する。
+`childrenEPName` の扱い(Phase 0 Finding B により決定):
+
+- 参照先 EP のエントリは静的な `ConfigurableEP` 宣言であり、Phase 0 で公開 `ExtensionPointName` によるメタデータのみの列挙が実証された(`com.intellij.editorOptionsProvider` — Code Completion を含む)。Configurable / provider のインスタンス化は発生しない
+- 子ページの parent は宣言ページとする(親子解決の source 2 に準ずる)
+- **宣言ページ自体**も、他の Eligible 条件を満たせば Eligible とする(childrenEPName の宣言はページ自体を Non-eligible にしない)
+- 参照先 EP が列挙できない場合(未登録、project-area 等)は **fail soft**(子なしとして扱い、エラーにしない)
+- 再帰参照は visited 管理で打ち切る
 
 例:
 
@@ -942,7 +948,7 @@ Settings Jump 本体は Dynamic を列挙せず、Configurable を生成せず�
 
 - 静的 EP 宣言のみで index した場合に、Settings UI 表示との差分がどの程度あるか
 - 主要ページ(Gate 1 対象例)が dynamic child に該当していないか
-- `childrenEPName` 由来ページの出現率(v1.0 対象外の妥当性確認。8.2節)
+- `childrenEPName` 由来ページの出現率と列挙可否(対応済み。カバレッジ確認。8.2節)
 - index 構築が過剰な class loading を発生させないこと
 - IDE 起動時間へ悪影響を与えないこと
 
@@ -1296,7 +1302,7 @@ Keyboard-first 原則(7.4節)は維持したまま、キー割り当てを覚え
 | 階層 | Navigation Path(公開メタデータ由来)。UI ツリーの完全再現は保証しない |
 | 親子解決 | explicit parentId → nested EP → top-level group |
 | Nested static Configurable | Eligible 対象(Dynamic とは区別) |
-| childrenEPName | v1.0 対象外。Gate 2 で出現率のみ測定 |
+| childrenEPName | 対応(参照先 EP をメタデータのみで列挙。fail soft。Phase 0 Finding B) |
 | Dynamic Settings | v1.0 対象外。カバレッジは Gate 2 で実測 |
 | Navigation 実行 | preflight(availability 評価は Open 時のみ)+ try-catch 境界で fail closed |
 | 英語検索の保証 | ID / plugin ID / alias 由来 token に限定 |

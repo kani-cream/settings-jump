@@ -1,7 +1,7 @@
 package com.github.kanicream.settingsjump.navigation
 
+import com.github.kanicream.settingsjump.index.ConfigurableEpTraversal
 import com.github.kanicream.settingsjump.index.SettingsPageIndexFacade
-import com.github.kanicream.settingsjump.model.SettingsPage
 import com.github.kanicream.settingsjump.model.SettingsScope
 import com.github.kanicream.settingsjump.state.SettingsJumpState
 import com.intellij.openapi.diagnostic.logger
@@ -44,7 +44,7 @@ object SettingsNavigationService {
         if (page.scope == SettingsScope.PROJECT && project == null) {
             return Outcome.NotOpened("\"${page.displayName}\" requires an open project.")
         }
-        val ep = findEp(project, configurableId)
+        val ep = ConfigurableEpTraversal.findById(project, configurableId)
             ?: return Outcome.NotOpened(
                 "Settings page \"${page.displayName}\" is not available in the current context.",
             )
@@ -89,15 +89,4 @@ object SettingsNavigationService {
         }
     }
 
-    private fun findEp(project: Project?, targetId: String): ConfigurableEP<*>? {
-        val roots: List<ConfigurableEP<*>> =
-            Configurable.APPLICATION_CONFIGURABLE.extensionList +
-                (project?.let { Configurable.PROJECT_CONFIGURABLE.getExtensions(it) } ?: emptyList())
-        return roots.firstNotNullOfOrNull { findInTree(it, targetId) }
-    }
-
-    private fun findInTree(ep: ConfigurableEP<*>, targetId: String): ConfigurableEP<*>? {
-        if (ep.id == targetId) return ep
-        return ep.children.orEmpty().firstNotNullOfOrNull { findInTree(it, targetId) }
-    }
 }
