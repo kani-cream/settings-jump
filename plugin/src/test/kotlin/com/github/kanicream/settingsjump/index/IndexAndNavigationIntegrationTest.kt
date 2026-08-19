@@ -34,6 +34,23 @@ class IndexAndNavigationIntegrationTest : BasePlatformTestCase() {
         assertTrue(outcome is SettingsNavigationService.Outcome.NotOpened)
     }
 
+    fun testChildrenEpNamePagesAreIndexed() {
+        // Code Completion is supplied via preferences.editor's
+        // childrenEPName=com.intellij.editorOptionsProvider (design.md 8.2 / Phase 0 Finding B).
+        val pages = SettingsPageIndexFacade.pagesForContext(project)
+        val completion = pages.firstOrNull { it.id == "editor.preferences.completion" }
+        assertNotNull("Code Completion must be indexed via childrenEPName", completion)
+        assertEquals("preferences.editor", completion!!.parentId)
+        assertTrue("parent display name should be on the path", completion.path.isNotEmpty())
+        // The declaring page itself stays eligible too.
+        assertNotNull(pages.firstOrNull { it.id == "preferences.editor" })
+    }
+
+    fun testChildrenEpNamePageIsNavigable() {
+        // The EP lookup used by navigation must also traverse childrenEPName children.
+        assertNotNull(ConfigurableEpTraversal.findById(project, "editor.preferences.completion"))
+    }
+
     fun testInvalidateRebuildsIndex() {
         val app = AppSettingsPageIndex.getInstance()
         val before = app.pages()

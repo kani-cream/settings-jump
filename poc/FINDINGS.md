@@ -82,5 +82,8 @@ Gate 2 full-IDE measurement should confirm before revisiting design 8.2.
    headless numbers undercount (e.g. no third-party plugins).
 2. Manual Gate 3: open Keymap / Gradle / Git / a CONTEXTUAL page / a missing ID from the
    Tools menu; record timings and verify the correct page is selected.
-3. Decide the design refinement raised by Findings A/B (parent-of-dynamic pages,
-   childrenEPName enumeration) — feeds design.md 8.2 before the production skeleton.
+3. ~~Decide the design refinement raised by Finding B (childrenEPName enumeration)~~
+   — RESOLVED: design.md v0.8 supports childrenEPName; the production index and
+   navigation traverse referenced EPs (Code Completion is searchable and openable).
+4. Finding A (parents of dynamic children, e.g. Code Style / Colors & Fonts) is
+   still excluded per design — revisit if users miss those pages.
