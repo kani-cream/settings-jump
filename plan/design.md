@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.5
+- Version: 0.6
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -14,6 +14,7 @@
 | 0.3 | 第2回レビューを反映。Eligible(識別の安定性)と Available(現在の context での存在)を分離し `ConfigurableProvider` による contextual availability に対応。Index を Application / Project の二層に分離。Gate 1/2 の reference 測定方法を明記(Internal API 禁止は配布 runtime code への制約と明確化)。日本語 UI での英語検索の保証範囲を限定。Nested static Configurable の親子解決を明記 |
 | 0.4 | 第3回レビューを反映。Navigation を preflight + navigation の二段構成にし、`ShowSettingsUtil` の predicate 不一致例外を IDE へ漏らさない fail closed 境界を明記。二層 index の役割を「scope と lifecycle の分離」に修正(availability は Navigation 時のみ評価)。`childrenEPName` を v1.0 Non-eligible と定義。節参照の修正、v0.5 / v1.0 のリリース名称変更 |
 | 0.5 | Platform ソース照合による精密化。SDK 上 `id` / display metadata は推奨であり必須ではないと訂正(Eligible 条件は Platform 要件より意図的に厳しいと明記)。bundle 省略時は plugin descriptor default bundle で key を解決できるため Eligible 判定に含める。`nonDefaultProject` により EP 直接宣言でも context 依存になり得るため CONTEXTUAL の定義を拡張し、preflight は AvailabilityKind に関係なく全ページで実施(AvailabilityKind は UI hint)。preflight に `ep.isAvailable()` を追加。例外方針を明確化(Platform cancellation は再送出) |
+| 0.6 | リリース計画を Phase 0(Technical Validation・version なし)→ v0.5(Public Preview・全機能)→ v1.0(Stable・安定化のみ)の3段階に簡素化。中間バージョン(v0.1〜v0.4、v0.9)を廃止し、進行管理はコミット・Issue 単位とする |
 
 ---
 
@@ -353,7 +354,7 @@ All Settings は必要に応じて折りたたみ、Favorite / Recent を優先�
 
 マウス操作は補助とする。
 
-Popup 内での Favorite 登録 / 解除・Slot 割り当ての具体的なキーバインドは v0.3 / v0.4 の実装時に確定する(v0.1〜v0.2 のブロッカーではない)。
+Popup 内での Favorite 登録 / 解除・Slot 割り当ての具体的なキーバインドは v0.5 の実装時に確定する(Phase 0 のブロッカーではない)。
 
 ---
 
@@ -1139,65 +1140,56 @@ Settings Jump は外部通信を必要としない。
 
 ## 24. リリース計画
 
-標準機能との差別化(2.2節)を踏まえ、**Search 単体では公開しない**。初公開はコア価値(Shortcut Slots)が揃った後とする。
+Settings Jump は機能の依存関係が単純であるため、細かいマイルストーンとバージョンを対応させず、**Phase 0(技術検証)→ v0.5(Public Preview)→ v1.0(Stable)の3段階**とする。
 
-### v0.1 — Technical PoC
+標準機能との差別化(2.2節)を踏まえ、**Search 単体では公開しない**。初公開はコア価値(Shortcut Slots)を含む一通りの機能が揃った v0.5 とする。内部の進行管理はコミット・Issue 単位で行い、中間バージョンは付けない。
 
-- PoC Gate 1〜3 の実施と GO/NO-GO 判定
-- Eligible 率・Navigation 性能の実測値を記録
-- NO-GO の場合はここで設計修正または企画再評価
+### Phase 0 — Technical Validation
+
+**Plugin version は付けない。Marketplace 公開なし。**
+
+`poc/` 等の検証用領域で以下を実施する(製品コードとは分離。Gate 測定用コードの扱いは 17.2節・18節 Gate 1)。
+
+- Gate 1: Eligible Page discovery(Eligible 率の実測)
+- Gate 2: Static coverage(dynamic / childrenEPName の出現率)
+- Gate 3: Stable Navigation(preflight + predicate navigation の成立性・性能)
 
 完了条件:
 
 > Gate 1〜3 がすべて GO である。
 
-### v0.2 — Search Foundation
+**NO-GO の場合は本実装へ進まない**(設計修正または企画再評価)。
 
-- Eligible Page index
-- Search Popup
-- Open Settings page
-- Localization 考慮の search index
+### v0.5 — Public Preview(Marketplace 初公開)
 
-完了条件:
+Settings Jump として必要な機能を一通り提供する。
 
-> 主要 Settings ページを検索し、正しいページへ直接移動できる。
-
-### v0.3 — Favorites
-
-- Favorite 登録 / 解除(Popup 内キーバインド確定)
-- 空検索時 Favorites 表示
-- 永続化(schema version 付き)
-
-### v0.4 — Shortcut Slots
-
-- Slot 1〜10
-- Keymap integration(Gate 5)
-- Slot assignment UI
-- unavailable handling
-
-### v0.5 — Public Preview(Marketplace Release)
-
-- Recent history(重複整理・最大件数管理)
-- Third-party plugin Settings(Gate 4)
+- Settings Page Index(Application / Project 二層)
+- Search Popup(Localization 考慮の search index)
+- Direct Navigation(preflight + fail closed)
+- Favorites(Popup 内キーバインド確定を含む)
+- Recent(重複整理・最大件数管理)
+- Shortcut Slots 1〜10(Keymap integration / Slot assignment UI。Gate 5)
+- Project / Application scope
+- Contextual availability / unavailable handling
 - Plugin lifecycle 追従(`DynamicPluginListener`)
+- Third-party Configurable(Gate 4)
+- Persistence(schema version 付き)
 - Plugin Verifier CI(Gate 6)
 - supported IDE range 確定
 
-**→ ここで初公開(Marketplace)**
-
-### v0.9 — UX / Stabilization
-
-- Search ranking 調整
-- Keyboard navigation
-- UI polishing
-- Error handling
-- Performance tuning
-
 ### v1.0 — Stable Release
 
-- README / Marketplace metadata
-- Documentation
-- Regression test
+v0.5 の実利用結果をもとに安定化する。**新しい大規模機能は原則追加しない。**
+
+- UX polish / Keyboard navigation
+- Search ranking tuning
+- Performance tuning
+- Compatibility fixes
+- Error handling 改善
+- Regression tests
+- Documentation / README
+- Marketplace metadata 仕上げ
 - Plugin Verifier clean
 
 ---
@@ -1309,7 +1301,7 @@ Settings 値ではなく、Settings Jump 自身の Favorite / Slot 設定だけ�
 | 永続化 | `PersistentStateComponent` + schemaVersion |
 | 対象環境 | 2024.2+(sinceBuild 242)/ Kotlin / Gradle Plugin 2.x / JDK 21 |
 | Plugin ID | com.github.kanicream.settingsjump |
-| 初公開時期 | v0.5(Slots + Recent + Compatibility 完了後) |
+| リリース段階 | Phase 0(version なし)→ v0.5 Public Preview → v1.0 Stable の3段階のみ |
 | UI テスト | Starter + Driver |
 | Internal API | 原則禁止 |
 | Swing UI 解析 | 禁止 |
