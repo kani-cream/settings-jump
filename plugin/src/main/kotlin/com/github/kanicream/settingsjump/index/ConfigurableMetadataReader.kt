@@ -74,7 +74,8 @@ internal object ConfigurableMetadataReader {
         val descriptor = ep.pluginDescriptor ?: return null
         val bundleName = ep.bundle?.takeIf { it.isNotBlank() }
             ?: descriptor.resourceBundleBaseName ?: return null
-        val loader = descriptor.classLoader ?: return null
+        // getPluginClassLoader (stable) — not getClassLoader, which is @ApiStatus.Experimental.
+        val loader = descriptor.pluginClassLoader ?: return null
         return try {
             DynamicBundle.getResourceBundle(loader, bundleName).getString(key)
         } catch (e: Exception) {
