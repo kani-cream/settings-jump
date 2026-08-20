@@ -7,6 +7,9 @@ without walking the settings tree every time.
 Settings Jump never changes setting values. It only takes you to the page;
 editing stays in the IDE's own Settings dialog.
 
+<img src="docs/screenshots/search.png" width="480" alt="Searching settings pages">
+<img src="docs/screenshots/favorites.png" width="480" alt="Favorites listed first on empty query">
+
 ## Features
 
 - **Search** settings pages by display name, hierarchy path, or internal id
@@ -31,6 +34,8 @@ editing stays in the IDE's own Settings dialog.
 3. **Shortcut slots** — select a result and press **Cmd/Ctrl+1..0** to assign
    it to a slot, then bind a key to `Settings Jump: Shortcut N` in
    `Settings > Keymap`. That key now opens the page directly.
+
+<img src="docs/screenshots/keymap.png" width="640" alt="Shortcut slots in the Keymap settings">
 
 ## Scope and limitations
 
