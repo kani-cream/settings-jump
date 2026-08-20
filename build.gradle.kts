@@ -5,5 +5,5 @@ plugins {
 
 allprojects {
     group = "com.github.kanicream.settingsjump"
-    version = "0.5.0"
+    version = "1.0.0"
 }

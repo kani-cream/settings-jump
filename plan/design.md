@@ -1,7 +1,7 @@
 # Settings Jump 設計書
 
 - Status: Draft
-- Version: 0.9
+- Version: 0.10
 - Repository: `kani-cream/settings-jump`
 - Product name: **Settings Jump**
 
@@ -18,6 +18,7 @@
 | 0.7 | 将来候補にマウス向けエントリポイント(ツールバー / ステータスバーのアイコンから Search Popup を開く。Shortcut Slot と併用)を追加。Tool Window 不採用の判断は維持 |
 | 0.8 | Phase 0 Finding B を受け、`childrenEPName` を v1.0 対応に変更(参照先 EP を公開 ExtensionPointName でメタデータのみ列挙、各エントリを通常の Eligible 条件で判定、宣言ページ自体も Eligible、列挙不能は fail soft)。Code Completion 等の Editor 配下ページが検索対象になる |
 | 0.9 | Phase 0 Finding A を受け、`dynamic=true` の親ページ自体を Eligible に変更(静的 XML 宣言で安定 ID・表示メタデータを持つため)。Code Style / Colors & Fonts / Version Control Mappings 等が検索対象になる。実行時生成の子ページは引き続き列挙しない |
+| 0.10 | Gate 4 完了(Key Promoter X で全ライフサイクル確認、Rainbow Brackets は ID 無しのため設計どおり除外)。初公開の配布バージョン番号を 1.0.0 に決定(24節の段階名「v0.5 / v1.0」は開発段階の呼称として維持し、配布番号とは独立とする)。ライセンスは Apache-2.0、アイコンは Jump to Gear(ファミリー配色・虫眼鏡なし)を採用 |
 
 ---
 

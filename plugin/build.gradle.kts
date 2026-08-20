@@ -34,6 +34,10 @@ intellijPlatform {
         id = "com.github.kanicream.settingsjump"
         name = "Settings Jump"
         version = project.version.toString()
+        changeNotes = """
+            Initial release: search settings pages and open them directly,
+            favorites, recent pages, and ten keymap-bindable shortcut slots.
+        """.trimIndent()
         ideaVersion {
             sinceBuild = "242"
         }
