@@ -88,3 +88,12 @@ Gate 2 full-IDE measurement should confirm before revisiting design 8.2.
 4. ~~Finding A (parents of dynamic children)~~ — RESOLVED: design.md v0.9 indexes
    dynamic parent pages themselves (Code Style, Colors & Fonts, VCS Mappings, ...);
    runtime-generated children stay unenumerated.
+
+## Gate 4 — Third-party plugin observations (sandbox, manual)
+
+- **Key Promoter X**: declares a proper EP `id` → detected, searchable, opens. Eligible.
+- **Rainbow Brackets** (2025.3.12): `applicationConfigurable` declares `key`+`bundle`+`instance`
+  but **no `id`** → NO_STABLE_ID, silently excluded as designed. Notably its instance
+  classes are obfuscated (e.g. `ḁȃ`) and change across releases — a class-name-derived
+  synthetic key would break or misdirect favorites on every plugin update. Validates
+  the design decision to fail closed instead of synthesizing keys (design.md 4.2).
