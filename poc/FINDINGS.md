@@ -92,6 +92,10 @@ Gate 2 full-IDE measurement should confirm before revisiting design 8.2.
 ## Gate 4 — Third-party plugin observations (sandbox, manual)
 
 - **Key Promoter X**: declares a proper EP `id` → detected, searchable, opens. Eligible.
+  Full lifecycle verified manually (2026-08-20): favorite + slot assigned, then plugin
+  disabled → slot invocation warns and does not open (fail closed, no IDE error),
+  favorite shows grayed "(unavailable)" and Enter only warns, removing the favorite
+  also drops it from search; re-enabled → search, slot, and favoriting all work again.
 - **Rainbow Brackets** (2025.3.12): `applicationConfigurable` declares `key`+`bundle`+`instance`
   but **no `id`** → NO_STABLE_ID, silently excluded as designed. Notably its instance
   classes are obfuscated (e.g. `ḁȃ`) and change across releases — a class-name-derived
