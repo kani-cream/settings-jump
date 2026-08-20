@@ -60,5 +60,6 @@ every push and pull request.
 
 ## Status
 
-Public preview (v0.5) in preparation. The design document and the Phase 0
-technical validation notes live under [plan/](plan/) and [poc/](poc/).
+v1.0.0 — preparing the initial JetBrains Marketplace submission. The design
+document and the Phase 0 technical validation notes live under
+[plan/](plan/) and [poc/](poc/).
