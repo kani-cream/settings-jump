@@ -155,6 +155,7 @@ internal class SettingsJumpPopup(private val project: Project?) {
             if (entry != null) "Slot $slot -> ${item.page.displayName}"
             else "Slot $slot cleared"
         SettingsJumpNotifier.info(project, message)
+        refresh()
     }
 
     private fun hintLabel(): JBLabel {
