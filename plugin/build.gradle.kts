@@ -35,8 +35,18 @@ intellijPlatform {
         name = "Settings Jump"
         version = project.version.toString()
         changeNotes = """
-            Initial release: search settings pages and open them directly,
-            favorites, recent pages, and ten keymap-bindable shortcut slots.
+            <b>1.1.0</b>
+            <ul>
+                <li>Slot-assigned pages are now marked in the popup list with a
+                circled slot number next to the favorite star, plus the bound
+                keystroke (or [Slot n]) at the end of the row.</li>
+                <li>The list refreshes immediately after assigning a slot.</li>
+            </ul>
+            <b>1.0.0</b>
+            <ul>
+                <li>Initial release: search settings pages and open them directly,
+                favorites, recent pages, and ten keymap-bindable shortcut slots.</li>
+            </ul>
         """.trimIndent()
         ideaVersion {
             sinceBuild = "242"
