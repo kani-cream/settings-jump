@@ -29,7 +29,7 @@ jobs:
           sudo docker image prune --all --force
           df -h /
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -38,7 +38,7 @@ jobs:
           java-version: 21
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           # Extracted IDE distributions live under transforms and are re-derivable
           # from the cached downloads; archiving them is what exhausts the disk.
@@ -52,7 +52,7 @@ jobs:
         run: ./gradlew :plugin:verifyPlugin --no-daemon
 
       - name: Upload distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plugin-distribution
           path: plugin/build/distributions/*.zip
@@ -62,7 +62,7 @@ jobs:
       # behind enough evidence to identify the failing test without it.
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload verifier reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plugin-verifier-reports
           path: plugin/build/reports/pluginVerifier/**
