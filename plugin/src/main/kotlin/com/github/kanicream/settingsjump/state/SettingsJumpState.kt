@@ -107,6 +107,10 @@ class SettingsJumpState : PersistentStateComponent<SettingsJumpState.Model> {
     fun slotAssignment(slot: Int): SlotEntry? =
         model.slots.firstOrNull { it.slot == slot }
 
+    /** Lowest slot holding the page, or null. (A page can sit in several slots.) */
+    fun slotFor(configurableId: String): Int? =
+        model.slots.filter { it.configurableId == configurableId }.minOfOrNull { it.slot }
+
     /** Assigning the already-assigned page clears the slot. Returns the new entry, or null when cleared. */
     fun assignSlot(slot: Int, page: SettingsPage): SlotEntry? {
         require(slot in 1..SLOT_COUNT) { "slot must be 1..$SLOT_COUNT" }

@@ -74,6 +74,23 @@ class SettingsJumpStateTest {
     }
 
     @Test
+    fun `slotFor returns the slot holding the page or null`() {
+        val state = SettingsJumpState()
+        assertNull(state.slotFor("a"))
+        state.assignSlot(3, page("a"))
+        assertEquals(3, state.slotFor("a"))
+        assertNull(state.slotFor("b"))
+    }
+
+    @Test
+    fun `slotFor returns the lowest slot when a page sits in several`() {
+        val state = SettingsJumpState()
+        state.assignSlot(7, page("a"))
+        state.assignSlot(2, page("a"))
+        assertEquals(2, state.slotFor("a"))
+    }
+
+    @Test
     fun `newer schema is left untouched`() {
         val state = SettingsJumpState()
         state.toggleFavorite(page("mine"))
