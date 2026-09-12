@@ -19,6 +19,9 @@ editing stays in the IDE's own Settings dialog.
 - **Shortcut slots**: assign a page to one of ten fixed slots
   (`Settings Jump: Shortcut 1..10`), bind keys in Keymap, and open the page
   with one keystroke.
+- **Slot marks**: pages assigned to a slot are marked in the list with a
+  circled slot number (①–⑩) next to the favorite star, and the bound
+  keystroke (or `[Slot N]` if none is bound yet) at the end of the row.
 - **Recent**: pages opened through Settings Jump are one keystroke away.
 - **Fail closed**: if a page's plugin is uninstalled or disabled, nothing
   breaks — favorites are kept as "unavailable", shortcuts show a notification
@@ -33,7 +36,10 @@ editing stays in the IDE's own Settings dialog.
    Starred pages are listed first while the search field is empty.
 3. **Shortcut slots** — select a result and press **Cmd/Ctrl+1..0** to assign
    it to a slot, then bind a key to `Settings Jump: Shortcut N` in
-   `Settings > Keymap`. That key now opens the page directly.
+   `Settings > Keymap`. That key now opens the page directly. Assigned
+   pages show a circled slot number (①–⑩) before the name and the bound
+   keystroke at the end of the row, so you can see at a glance which pages
+   already have a slot. Pressing the same slot key on the same page clears it.
 
 <img src="docs/screenshots/keymap.png" width="640" alt="Shortcut slots in the Keymap settings">
 
@@ -65,6 +71,6 @@ every push and pull request.
 
 ## Status
 
-v1.0.0 — preparing the initial JetBrains Marketplace submission. The design
+v1.1.0 — published on JetBrains Marketplace. The design
 document and the Phase 0 technical validation notes live under
 [plan/](plan/) and [poc/](poc/).
