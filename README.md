@@ -56,7 +56,7 @@ and the rest is one click away in the dialog. Details are documented in
 
 ## Compatibility
 
-- IntelliJ-based IDEs 2024.2+ (`since-build 242`), tested up to 2026.3, including
+- IntelliJ-based IDEs 2024.2+ (`since-build 242`), tested up to 2026.3 RC, including
   the non-modal Settings window that is the default from 2026.2
 
 ## Development
@@ -76,6 +76,6 @@ every push and pull request, and also runs the tests on the newer IDEs.
 
 ## Status
 
-v1.1.0 — published on JetBrains Marketplace. The design
+v1.1.1. Releases are published on JetBrains Marketplace. The design
 document and the Phase 0 technical validation notes live under
 [plan/](plan/) and [poc/](poc/).

@@ -58,7 +58,7 @@ intellijPlatform {
         changeNotes = """
             <b>1.1.1</b>
             <ul>
-                <li>Confirmed working on IDE versions 2026.2 and 2026.3, including
+                <li>Confirmed working on IDE versions 2026.2 and 2026.3 RC, including
                 the non-modal Settings window that is now the default.</li>
             </ul>
             <b>1.1.0</b>
