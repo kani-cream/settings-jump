@@ -75,6 +75,10 @@ newer IDE from `gradle.properties` for testing only.
 CI runs build, tests, Plugin Verifier, and uploads the distribution ZIP on
 every push and pull request, and also runs the tests on the newer IDEs.
 
+This repository is public, so commits must use a GitHub noreply address. CI rejects
+anything else; run `git config core.hooksPath .githooks` once per clone to catch it
+before pushing.
+
 ## Status
 
 v1.1.1. Releases are published on JetBrains Marketplace. The design

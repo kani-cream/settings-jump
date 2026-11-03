@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Stops a push before anything reaches the public repository. Enable it once per clone with:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+deleted=0000000000000000000000000000000000000000
+pushed=()
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    if [ "$local_sha" != "$deleted" ]; then
+        pushed+=("$local_sha")
+    fi
+done
+
+if [ "${#pushed[@]}" -gt 0 ]; then
+    "$(git rev-parse --show-toplevel)/scripts/check-no-email.sh" "${pushed[@]}" --not --remotes=origin
+fi

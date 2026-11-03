@@ -1070,6 +1070,16 @@ untilBuild は原則指定しない(Platform 推奨に従う)。supported range 
 
 2026.2 で Settings が既定で非モーダルになった。`showSettingsDialog` はブロックしなくなり、Settings を開いたままのジャンプが可能になる。既存ウィンドウは再利用されるため、本プラグイン側の対応は不要である。
 
+### 20.2 メールアドレスの露出防止
+
+リポジトリは公開のため、コミットとタグの ID、コミットメッセージ、追加した内容にメールアドレスを含めない。`scripts/check-no-email.sh` が GitHub の noreply アドレス以外を拒否する。
+
+- `.githooks/pre-push` は push の前に止める。clone ごとに `git config core.hooksPath .githooks` で有効にする
+- `.github/workflows/privacy.yml` は全ブランチ、全タグ、PR で検査する。push の後の検知であり、公開を防ぐものではない
+- 検査は許可リスト方式にして、拒否したいアドレスをリポジトリに書かない。CI ログも公開されるため、出力はコミットのハッシュとタグ名だけにする
+
+未 push のコミットの ID が誤っている場合は、`user.email` を noreply アドレスに直してから `git rebase -r <base> --exec 'git commit --amend --no-edit --reset-author'` で作り直す。push 済みの場合は履歴の書き換えに加えて、旧コミットの削除を GitHub Support に依頼する必要がある。
+
 ---
 
 ## 21. エラーハンドリング
