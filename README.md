@@ -64,7 +64,8 @@ and the rest is one click away in the dialog. Details are documented in
 ```bash
 ./gradlew build            # build and run all tests
 ./gradlew :plugin:runIde   # launch a sandbox IDE with the plugin
-./gradlew :plugin:verifyPlugin
+./gradlew :plugin:verifyPlugin              # check all supported IDEs
+./gradlew :plugin:verifyPlugin -PverifierShard=unified   # check one CI shard (older or unified)
 ./gradlew :plugin:test -PideTarget=stable   # run the tests on a newer IDE (stable or next)
 ```
 

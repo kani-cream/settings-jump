@@ -1057,6 +1057,7 @@ untilBuild は原則指定しない(Platform 推奨に従う)。supported range 
 配布物は baseline 242 / JDK 21 でビルドし続ける。新しい IDE には「配布物を引き上げる」のではなく「検証範囲を広げる」形で追従する。
 
 - 実行時の互換性は Plugin Verifier で確認する。`recommended()` は未リリースの IDE を含まないため、次期版は明示的に追加する
+- CI の Plugin Verifier は `-PverifierShard=older|unified` で、unified 版が始まる 253 を境に 2 ジョブへ分ける。IDE の一覧は手で持たず、新しいリリースは自動的に `unified` 側へ入る
 - `-PideTarget=stable|next` で `gradle.properties` の新しい IDE を対象にビルドし、テストを実行する。CI ではテストのみに使い、配布物にはしない
 - 2026.2 以降の Platform は Java 25 を要求するため、`-PideTarget` のビルドは JDK 25 を使う。この出力は 2026.1 以前の IDE で読み込めない
 
