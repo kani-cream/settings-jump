@@ -1052,6 +1052,23 @@ Display Name:          Settings Jump
 
 untilBuild は原則指定しない(Platform 推奨に従う)。supported range の最終確定は Plugin Verifier の結果を踏まえ v0.5 で行う。
 
+### 20.1 新しい IDE への追従
+
+配布物は baseline 242 / JDK 21 でビルドし続ける。新しい IDE には「配布物を引き上げる」のではなく「検証範囲を広げる」形で追従する。
+
+- 実行時の互換性は Plugin Verifier で確認する。`recommended()` は未リリースの IDE を含まないため、次期版は明示的に追加する
+- `-PideTarget=stable|next` で `gradle.properties` の新しい IDE を対象にビルドし、テストを実行する。CI ではテストのみに使い、配布物にはしない
+- 2026.2 以降の Platform は Java 25 を要求するため、`-PideTarget` のビルドは JDK 25 を使う。この出力は 2026.1 以前の IDE で読み込めない
+
+ビルド上の注意点:
+
+- `apiVersion` は 2.0 に固定する。baseline 242 の同梱 stdlib は 1.9.24 であり、固定しないと Kotlin 2.4 が `sequence {}` などのコルーチンコードに対して新しい stdlib のクラス(`SpillingKt`)への参照を生成し、古い IDE で実行時に `NoClassDefFoundError` になる。2.0 は Kotlin 2.4 が受け付ける最小値のため、deprecation 警告は許容する
+- unified 版 IDE(2025.3+)のテストでは Ultimate の難読化クラスが起動時に生成できず、`BasePlatformTestCase` が全滅する。`testIdeBundledPluginsClasspathExcludes` で除外する
+- `intellijPlatformTesting.testIde` のカスタムタスクは `testFramework` を classpath に含まず、統合テストが黙って除外されたまま成功扱いになるため使わない。CI では統合テストのレポートの存在を確認する
+- Gradle 9.8 以降は、対応する修正を含む IntelliJ Platform Gradle Plugin のリリース後に更新する
+
+2026.2 で Settings が既定で非モーダルになった。`showSettingsDialog` はブロックしなくなり、Settings を開いたままのジャンプが可能になる。既存ウィンドウは再利用されるため、本プラグイン側の対応は不要である。
+
 ---
 
 ## 21. エラーハンドリング

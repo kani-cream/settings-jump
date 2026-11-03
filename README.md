@@ -56,7 +56,8 @@ and the rest is one click away in the dialog. Details are documented in
 
 ## Compatibility
 
-- IntelliJ-based IDEs 2024.2+ (`since-build 242`)
+- IntelliJ-based IDEs 2024.2+ (`since-build 242`), tested up to 2026.3 RC, including
+  the non-modal Settings window that is the default from 2026.2
 
 ## Development
 
@@ -64,13 +65,17 @@ and the rest is one click away in the dialog. Details are documented in
 ./gradlew build            # build and run all tests
 ./gradlew :plugin:runIde   # launch a sandbox IDE with the plugin
 ./gradlew :plugin:verifyPlugin
+./gradlew :plugin:test -PideTarget=stable   # run the tests on a newer IDE (stable or next)
 ```
 
+Distributions are always built from the 2024.2 baseline. `-PideTarget` selects a
+newer IDE from `gradle.properties` for testing only.
+
 CI runs build, tests, Plugin Verifier, and uploads the distribution ZIP on
-every push and pull request.
+every push and pull request, and also runs the tests on the newer IDEs.
 
 ## Status
 
-v1.1.0 — published on JetBrains Marketplace. The design
+v1.1.1. Releases are published on JetBrains Marketplace. The design
 document and the Phase 0 technical validation notes live under
 [plan/](plan/) and [poc/](poc/).
