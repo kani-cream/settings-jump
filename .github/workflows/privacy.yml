@@ -1,0 +1,26 @@
+name: Privacy
+
+# Separate from the build workflow so that it also covers tags and documentation-only
+# changes, which that workflow skips.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-no-email:
+    name: Check for email addresses
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Check out the real head, not the merge commit GitHub creates for a pull request.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check commits and tags
+        run: scripts/check-no-email.sh HEAD --tags
