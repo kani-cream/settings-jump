@@ -18,6 +18,12 @@ fun ideTargetProperty(target: String, key: String): String =
 
 val ideTargetVersion: String? = ideTargetName?.let { ideTargetProperty(it, "version") }
 
+// CI splits Plugin Verifier into two jobs with -PverifierShard=older|unified. Splitting on a
+// build number keeps the IDE list automatic: every new release lands in "unified". Without
+// the property, verifyPlugin checks all IDEs.
+val verifierShard: String? = providers.gradleProperty("verifierShard").orNull
+val firstUnifiedBuild = 253
+
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -80,9 +86,16 @@ intellijPlatform {
     }
     pluginVerification {
         ides {
-            recommended()
-            // recommended() covers released IDEs only, not the upcoming one.
-            create(IntelliJPlatformType.IntellijIdea, ideTargetProperty("next", "version"))
+            when (verifierShard) {
+                null -> recommended()
+                "older" -> select { untilBuild = "${firstUnifiedBuild - 1}.*" }
+                "unified" -> select { sinceBuild = "$firstUnifiedBuild" }
+                else -> error("Unknown verifierShard '$verifierShard': use older or unified")
+            }
+            // Released IDEs only come from the lists above, so add the upcoming one.
+            if (verifierShard != "older") {
+                create(IntelliJPlatformType.IntellijIdea, ideTargetProperty("next", "version"))
+            }
         }
     }
 }
